@@ -1,0 +1,88 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://scripts/main.gd" id="1_main"]
+[ext_resource type="Script" path="res://scripts/level.gd" id="2_level"]
+[ext_resource type="PackedScene" path="res://scenes/player.tscn" id="3_player"]
+[ext_resource type="Script" path="res://scripts/camera_rig.gd" id="4_cam"]
+[ext_resource type="Script" path="res://scripts/zombie_spawner.gd" id="5_spawner"]
+[ext_resource type="PackedScene" path="res://scenes/zombie.tscn" id="6_zombie"]
+[ext_resource type="Script" path="res://scripts/hud.gd" id="7_hud"]
+[ext_resource type="PackedScene" path="res://scenes/pickup.tscn" id="8_pickup"]
+
+[sub_resource type="Environment" id="Env"]
+background_mode = 1
+background_color = Color(0.42, 0.46, 0.48, 1)
+ambient_light_source = 2
+ambient_light_color = Color(0.6, 0.62, 0.6, 1)
+ambient_light_energy = 0.5
+tonemap_mode = 2
+ssao_enabled = true
+fog_enabled = true
+fog_light_color = Color(0.42, 0.46, 0.48, 1)
+fog_density = 0.006
+adjustment_enabled = true
+adjustment_contrast = 1.1
+adjustment_saturation = 0.72
+
+[sub_resource type="NavigationMesh" id="NavMesh"]
+geometry_parsed_geometry_type = 1
+agent_height = 2.0
+agent_radius = 0.5
+agent_max_climb = 0.25
+
+[sub_resource type="BoxShape3D" id="GroundShape"]
+size = Vector3(120, 1, 120)
+
+[sub_resource type="PlaneMesh" id="GroundMesh"]
+size = Vector2(120, 120)
+
+[sub_resource type="StandardMaterial3D" id="GroundMat"]
+albedo_color = Color(0.24, 0.25, 0.18, 1)
+roughness = 1.0
+
+[node name="Main" type="Node3D"]
+script = ExtResource("1_main")
+
+[node name="WorldEnvironment" type="WorldEnvironment" parent="."]
+environment = SubResource("Env")
+
+[node name="Sun" type="DirectionalLight3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 20, 0)
+shadow_enabled = true
+directional_shadow_max_distance = 80.0
+
+[node name="Level" type="NavigationRegion3D" parent="."]
+navigation_mesh = SubResource("NavMesh")
+script = ExtResource("2_level")
+pickup_scene = ExtResource("8_pickup")
+
+[node name="Ground" type="StaticBody3D" parent="Level"]
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="Level/Ground"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.5, 0)
+shape = SubResource("GroundShape")
+
+[node name="Mesh" type="MeshInstance3D" parent="Level/Ground"]
+mesh = SubResource("GroundMesh")
+surface_material_override/0 = SubResource("GroundMat")
+
+[node name="Props" type="Node3D" parent="Level"]
+
+[node name="Pickups" type="Node3D" parent="."]
+
+[node name="Player" parent="." instance=ExtResource("3_player")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.1, 0)
+
+[node name="CameraRig" type="Node3D" parent="."]
+script = ExtResource("4_cam")
+target_path = NodePath("../Player")
+
+[node name="Camera3D" type="Camera3D" parent="CameraRig"]
+current = true
+
+[node name="ZombieSpawner" type="Node3D" parent="."]
+script = ExtResource("5_spawner")
+zombie_scene = ExtResource("6_zombie")
+
+[node name="HUD" type="CanvasLayer" parent="."]
+script = ExtResource("7_hud")

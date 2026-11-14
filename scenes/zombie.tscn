@@ -1,0 +1,57 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://scripts/zombie.gd" id="1_zombie"]
+[ext_resource type="PackedScene" path="res://assets/models/zombies/zombie_worker.glb" id="2_worker"]
+[ext_resource type="PackedScene" path="res://assets/models/zombies/zombie_flannel.glb" id="3_flannel"]
+[ext_resource type="PackedScene" path="res://assets/models/zombies/zombie_woman.glb" id="4_woman"]
+
+[sub_resource type="CapsuleShape3D" id="Shape_body"]
+radius = 0.33
+height = 1.8
+
+[sub_resource type="CapsuleMesh" id="Mesh_body"]
+radius = 0.3
+height = 1.45
+
+[sub_resource type="SphereMesh" id="Mesh_head"]
+radius = 0.19
+height = 0.38
+
+[sub_resource type="BoxMesh" id="Mesh_arm"]
+size = Vector3(0.11, 0.11, 0.62)
+
+[node name="Zombie" type="CharacterBody3D"]
+collision_layer = 4
+collision_mask = 7
+script = ExtResource("1_zombie")
+model_variants = Array[PackedScene]([ExtResource("2_worker"), ExtResource("3_flannel"), ExtResource("4_woman")])
+model_scale = 1.8
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.9, 0)
+shape = SubResource("Shape_body")
+
+[node name="NavigationAgent3D" type="NavigationAgent3D" parent="."]
+path_desired_distance = 0.75
+target_desired_distance = 0.75
+radius = 0.4
+
+[node name="ModelPivot" type="Node3D" parent="."]
+
+[node name="Placeholder" type="Node3D" parent="ModelPivot"]
+
+[node name="Body" type="MeshInstance3D" parent="ModelPivot/Placeholder"]
+transform = Transform3D(1, 0, 0, 0, 0.98, 0.17, 0, -0.17, 0.98, 0, 0.73, 0.04)
+mesh = SubResource("Mesh_body")
+
+[node name="SkinHead" type="MeshInstance3D" parent="ModelPivot/Placeholder"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.04, 1.55, 0.18)
+mesh = SubResource("Mesh_head")
+
+[node name="SkinArmL" type="MeshInstance3D" parent="ModelPivot/Placeholder"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.24, 1.22, 0.38)
+mesh = SubResource("Mesh_arm")
+
+[node name="SkinArmR" type="MeshInstance3D" parent="ModelPivot/Placeholder"]
+transform = Transform3D(1, 0, 0, 0, 0.97, -0.26, 0, 0.26, 0.97, 0.24, 1.17, 0.36)
+mesh = SubResource("Mesh_arm")

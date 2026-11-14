@@ -1,0 +1,9 @@
+# Godot önbelleği (her bilgisayarda yeniden oluşur)
+.godot/
+*.tmp
+export/
+builds/
+
+# Test kalıntıları
+override.cfg
+zz_probe*

@@ -1,0 +1,74 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://scripts/player.gd" id="1_player"]
+[ext_resource type="PackedScene" path="res://assets/models/characters/player.glb" id="2_model"]
+
+[sub_resource type="CapsuleShape3D" id="Shape_body"]
+radius = 0.35
+height = 1.8
+
+[sub_resource type="CapsuleMesh" id="Mesh_body"]
+radius = 0.32
+height = 1.5
+
+[sub_resource type="SphereMesh" id="Mesh_head"]
+radius = 0.19
+height = 0.38
+
+[sub_resource type="BoxMesh" id="Mesh_pack"]
+size = Vector3(0.42, 0.5, 0.2)
+
+[sub_resource type="StandardMaterial3D" id="Mat_jacket"]
+albedo_color = Color(0.22, 0.3, 0.42, 1)
+roughness = 0.9
+
+[sub_resource type="StandardMaterial3D" id="Mat_skin"]
+albedo_color = Color(0.82, 0.66, 0.53, 1)
+roughness = 0.8
+
+[sub_resource type="StandardMaterial3D" id="Mat_pack"]
+albedo_color = Color(0.38, 0.28, 0.17, 1)
+roughness = 1.0
+
+[node name="Player" type="CharacterBody3D"]
+collision_layer = 2
+collision_mask = 5
+script = ExtResource("1_player")
+model_scene = ExtResource("2_model")
+model_scale = 1.8
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.9, 0)
+shape = SubResource("Shape_body")
+
+[node name="ModelPivot" type="Node3D" parent="."]
+
+[node name="Placeholder" type="Node3D" parent="ModelPivot"]
+
+[node name="Body" type="MeshInstance3D" parent="ModelPivot/Placeholder"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.75, 0)
+mesh = SubResource("Mesh_body")
+surface_material_override/0 = SubResource("Mat_jacket")
+
+[node name="Head" type="MeshInstance3D" parent="ModelPivot/Placeholder"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.62, 0.02)
+mesh = SubResource("Mesh_head")
+surface_material_override/0 = SubResource("Mat_skin")
+
+[node name="Backpack" type="MeshInstance3D" parent="ModelPivot/Placeholder"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.05, -0.32)
+mesh = SubResource("Mesh_pack")
+surface_material_override/0 = SubResource("Mat_pack")
+
+[node name="Flashlight" type="SpotLight3D" parent="ModelPivot"]
+light_color = Color(1, 0.95, 0.82, 1)
+light_energy = 4.0
+shadow_enabled = true
+spot_range = 20.0
+spot_angle = 32.0
+
+[node name="MuzzleLight" type="OmniLight3D" parent="ModelPivot"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.3, 0.7)
+light_color = Color(1, 0.8, 0.4, 1)
+light_energy = 0.0
+omni_range = 6.0
