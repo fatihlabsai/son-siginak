@@ -532,6 +532,7 @@ func _build_controls() -> Control:
 		["Q", "Silah değiştir"],
 		["E", "Eşya al  /  basılı tut: ara"],
 		["Tab", "Envanter"],
+		["M", "Harita"],
 		["B", "İnşa: barikat / tuzak"],
 		["F", "Fener"],
 		["1  /  2  /  3  /  4", "Ye  /  İç  /  İlk yardım  /  Bandaj"],

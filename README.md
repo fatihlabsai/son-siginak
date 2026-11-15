@@ -28,6 +28,7 @@ Kayıtlar her bilgisayarda ayrıdır (`%APPDATA%\Godot\app_userdata\Son Sığın
 | Q | Silah değiştir |
 | E | Eşya al · **basılı tut**: ev/araba/sandık ara, barikat onar |
 | Tab | Envanter |
+| M | Harita (köşede mini harita da var) |
 | B | İnşa modu (1/2/3 seç, sol tık kur, R döndür) |
 | F | Fener |
 | 1 / 2 / 3 / 4 | Konserve ye / Su iç / İlk yardım / Bandaj |

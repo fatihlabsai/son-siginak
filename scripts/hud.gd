@@ -11,7 +11,7 @@ extends CanvasLayer
 const MENU_SCENE := "res://scenes/main_menu.tscn"
 const HELP_ROWS := [
 	["WASD", "Yürü"], ["Shift", "Koş"], ["Sol tık", "Vur"], ["Sağ tık + Sol tık", "Ateş et"],
-	["Q", "Silah değiştir"], ["E", "Al  /  basılı tut: ara, onar"], ["Tab", "Envanter"], ["B", "İnşa (barikat, tuzak)"], ["F", "Fener"],
+	["Q", "Silah değiştir"], ["E", "Al  /  basılı tut: ara, onar"], ["Tab", "Envanter"], ["M", "Harita"], ["B", "İnşa (barikat, tuzak)"], ["F", "Fener"],
 	["1 2 3 4", "Ye / İç / Kit / Bandaj"], ["C", "Üretim"], ["G", "Fırlat (Z: değiştir)"], ["Esc", "Menü"],
 ]
 
@@ -72,6 +72,7 @@ func _ready() -> void:
 	_build_inventory()
 	_build_clock()
 	_build_objective()
+	_build_map()
 	_build_help()
 	_build_toast()
 	_build_prompt()
@@ -216,6 +217,12 @@ func _unhandled_input(event: InputEvent) -> void:
 		return
 	if event.is_action_pressed("inventory") and not _game_over and not get_tree().paused:
 		_open_inventory()
+		get_viewport().set_input_as_handled()
+	elif event.is_action_pressed("map") and not _game_over and not get_tree().paused:
+		_toggle_map()
+		get_viewport().set_input_as_handled()
+	elif _big_map.visible and event.is_action_pressed("pause"):
+		_toggle_map()
 		get_viewport().set_input_as_handled()
 	elif event.is_action_pressed("craft") and not _game_over and not get_tree().paused:
 		_open_crafting()
@@ -453,6 +460,61 @@ func _build_objective() -> void:
 	_shadow(_obj_label)
 	_obj_box.add_child(_obj_label)
 	_obj_box.modulate.a = 0.0
+
+
+var _minimap: MapView
+var _big_map: Control
+
+
+func _build_map() -> void:
+	_minimap = MapView.new()
+	_anchor(_minimap, Vector4(1, 0, 1, 0), Vector4(-208, 228, -28, 408))
+	_root.add_child(_minimap)
+	var hint := UITheme.label("M  harita", 12, Color(1, 1, 1, 0.45))
+	hint.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+	_anchor(hint, Vector4(1, 0, 1, 0), Vector4(-208, 410, -28, 428))
+	_root.add_child(hint)
+	_big_map = Control.new()
+	_big_map.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	_big_map.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_big_map.visible = false
+	_root.add_child(_big_map)
+	var dim := ColorRect.new()
+	dim.color = Color(0, 0, 0, 0.6)
+	dim.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	dim.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_big_map.add_child(dim)
+	var mv := MapView.new()
+	mv.full = true
+	mv.anchor_left = 0.5
+	mv.anchor_right = 0.5
+	mv.anchor_top = 0.5
+	mv.anchor_bottom = 0.5
+	mv.offset_left = -330
+	mv.offset_right = 330
+	mv.offset_top = -330
+	mv.offset_bottom = 330
+	_big_map.add_child(mv)
+	var title := UITheme.label("HARİTA", 30, UITheme.TEXT, UITheme.title_font())
+	title.anchor_left = 0.5
+	title.anchor_right = 0.5
+	title.offset_left = -330
+	title.offset_top = 18
+	_big_map.add_child(title)
+	var close := UITheme.label("M / Esc: kapat", 14, UITheme.TEXT_DIM)
+	close.anchor_left = 0.5
+	close.anchor_right = 0.5
+	close.anchor_top = 1.0
+	close.anchor_bottom = 1.0
+	close.offset_left = -330
+	close.offset_top = -40
+	_big_map.add_child(close)
+
+
+func _toggle_map() -> void:
+	_big_map.visible = not _big_map.visible
+	_minimap.visible = not _big_map.visible
+	Audio.ui("click", -8.0)
 
 
 func _current_objective() -> String:

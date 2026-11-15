@@ -258,6 +258,7 @@ func _setup_input() -> void:
 	_bind_keys("use_medkit", [KEY_3])
 	_bind_keys("use_bandage", [KEY_4])
 	_bind_keys("craft", [KEY_C])
+	_bind_keys("map", [KEY_M])
 	_bind_keys("throw", [KEY_G])
 	_bind_keys("switch_throwable", [KEY_Z])
 	_bind_keys("pause", [KEY_ESCAPE])

@@ -18,6 +18,8 @@ extends NavigationRegion3D
 
 var _rng := RandomNumberGenerator.new()
 var _occupied: Array[Rect2] = []
+## Haritada gösterilecek bina alanları
+var map_buildings: Array[Rect2] = []
 var _mat_cache := {}
 var _campfire_light: OmniLight3D
 var _t := 0.0
@@ -374,6 +376,7 @@ func _build_buildings(count: int) -> void:
 		if _overlaps(rect.grow(3.0)):
 			continue
 		_reserve(rect)
+		map_buildings.append(rect)
 		var building := PropLibrary.spawn(props, kind, Vector3(c.x, 0, c.y), s, yaw)
 		if building:
 			_fader.add(building, PropLibrary.aabb(kind), s)
@@ -829,6 +832,10 @@ func shelter_door_open() -> bool:
 
 func shelter_bag_searched() -> bool:
 	return is_instance_valid(shelter_bag) and shelter_bag.searched
+
+
+func yard_rect() -> Rect2:
+	return _yard_rect
 
 
 func shelter_node() -> Node3D:
