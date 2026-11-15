@@ -36,10 +36,15 @@ var _tip: Label
 var _tip_index := 0
 var _fade: ColorRect
 var _busy := false
+var _updater: Updater
+var _upd_panel: PanelContainer
+var _upd_label: Label
+var _upd_btn: Button
 
 
 func _ready() -> void:
 	get_tree().paused = false
+	Updater.cleanup_old()
 	_build_world()
 	_build_ui()
 	Settings.changed.connect(_apply_quality)
@@ -390,7 +395,7 @@ func _build_ui() -> void:
 	_controls_box = _build_controls()
 
 	# Alt bilgiler
-	var ver := UITheme.label("v0.1  ·  Prototip", 14, Color(1, 1, 1, 0.35))
+	var ver := UITheme.label("v%s  ·  Prototip" % Updater.current_version(), 14, Color(1, 1, 1, 0.35))
 	ver.anchor_top = 1.0
 	ver.anchor_bottom = 1.0
 	ver.offset_left = 90
@@ -413,12 +418,75 @@ func _build_ui() -> void:
 	timer.timeout.connect(_next_tip)
 	add_child(timer)
 
+	_build_update_panel()
+
 	_fade = ColorRect.new()
 	_fade.color = Color(0, 0, 0, 1)
 	_full(_fade)
 	_ui.add_child(_fade)
 
 	_show("main")
+
+
+## Sağ üstte güncelleme kartı: yeni sürüm varsa görünür.
+func _build_update_panel() -> void:
+	_upd_panel = PanelContainer.new()
+	var sb := StyleBoxFlat.new()
+	sb.bg_color = Color(0.04, 0.04, 0.05, 0.82)
+	sb.border_width_left = 3
+	sb.border_color = UITheme.ACCENT
+	sb.set_corner_radius_all(3)
+	sb.set_content_margin_all(14)
+	sb.content_margin_left = 18
+	_upd_panel.add_theme_stylebox_override("panel", sb)
+	_upd_panel.anchor_left = 1.0
+	_upd_panel.anchor_right = 1.0
+	_upd_panel.offset_left = -440
+	_upd_panel.offset_right = -40
+	_upd_panel.offset_top = 40
+	_upd_panel.visible = false
+	_ui.add_child(_upd_panel)
+	var vb := VBoxContainer.new()
+	vb.add_theme_constant_override("separation", 6)
+	_upd_panel.add_child(vb)
+	vb.add_child(UITheme.label("GÜNCELLEME", 13, UITheme.ACCENT.lightened(0.3), UITheme.spaced_font()))
+	_upd_label = UITheme.label("", 18, UITheme.TEXT)
+	_upd_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	vb.add_child(_upd_label)
+	_upd_btn = UITheme.menu_button("ŞİMDİ GÜNCELLE", 20)
+	_upd_btn.custom_minimum_size = Vector2(0, 0)
+	_upd_btn.pressed.connect(_on_update_pressed)
+	vb.add_child(_upd_btn)
+
+	_updater = Updater.new()
+	add_child(_updater)
+	_updater.state_changed.connect(_on_update_state)
+	_updater.check()
+
+
+func _on_update_state(state: String, text: String) -> void:
+	match state:
+		"available":
+			_upd_panel.visible = true
+			_upd_label.text = text + "\nŞu an: v%s" % Updater.current_version()
+			_upd_btn.visible = true
+			_upd_btn.text = "ŞİMDİ GÜNCELLE" if Updater.can_self_update() else "SAYFAYI AÇ"
+		"downloading", "installing":
+			_upd_panel.visible = true
+			_upd_label.text = text
+			_upd_btn.visible = false
+		"error":
+			_upd_panel.visible = true
+			_upd_label.text = text
+			_upd_btn.visible = true
+			_upd_btn.text = "SAYFAYI AÇ"
+		_:
+			pass   # güncel / kontrol / bağlantı yok: sessiz kal
+
+
+func _on_update_pressed() -> void:
+	if _updater.state == "available":
+		_updater.install()
 
 
 func _menu_column() -> VBoxContainer:
