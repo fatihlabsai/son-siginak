@@ -62,6 +62,8 @@ const THROWABLES := ["molotov", "noisemaker"]
 const THROW_RANGE := 12.0
 var _throw_timer := 0.0
 
+## Ara sahne oyuncuyu yönetirken true: girdi, hareket ve otomatik animasyon durur.
+var scripted := false
 var _attack_timer := 0.0
 var _noise_timer := 0.0
 var _search_noise := 0.0
@@ -93,16 +95,9 @@ func _ready() -> void:
 	_setup_model()
 	_create_aim_marker()
 
-	# Başlangıç teçhizatı
+	# Başlangıç teçhizatı sığınaktaki çantada (Level kurar)
 	inv.max_weight = max_weight
-	inv.add("knife")
-	inv.add("pistol")
-	inv.add("pistol_ammo", 8)
-	inv.add("food", 1)
-	inv.add("water", 1)
-	inv.add("wood", 3)
-	inv.add("nails", 6)
-	inv.equip(0)
+	inv.equip(-1)
 	build.setup(self)
 	add_child(build)
 	inv.changed.connect(_update_held_weapon)
@@ -146,7 +141,7 @@ func _setup_model() -> void:
 func _physics_process(delta: float) -> void:
 	if not is_on_floor():
 		velocity.y -= 20.0 * delta
-	if is_dead:
+	if is_dead or scripted:
 		velocity.x = move_toward(velocity.x, 0.0, acceleration * delta)
 		velocity.z = move_toward(velocity.z, 0.0, acceleration * delta)
 		move_and_slide()
@@ -665,7 +660,9 @@ func _update_search(delta: float) -> void:
 		var target := searching
 		searching = null
 		search_progress = 0.0
-		_receive_loot(target.open(), target.global_position)
+		var loot := target.open()
+		if not target.silent:
+			_receive_loot(loot, target.global_position)
 
 
 ## Barikat onarma: E basılı, her tamamlanışta 1 tahta harcar ve %40 onarır.

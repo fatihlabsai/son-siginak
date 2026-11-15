@@ -3,6 +3,7 @@ extends Node3D
 ## sisin içinde yürüyen zombiler; solda menü.
 
 const GAME_SCENE := "res://scenes/main.tscn"
+const INTRO_SCENE := "res://scenes/intro.tscn"
 const PLAYER_GLB := preload("res://assets/models/characters/player.glb")
 const ZOMBIE_GLBS := [
 	preload("res://assets/models/zombies/zombie_worker.glb"),
@@ -584,7 +585,7 @@ func _start_game(difficulty: int) -> void:
 	var tw := create_tween()
 	tw.tween_property(_fade, "color:a", 1.0, 0.7)
 	await tw.finished
-	get_tree().change_scene_to_file(GAME_SCENE)
+	get_tree().change_scene_to_file(INTRO_SCENE)
 
 
 func _continue_game() -> void:

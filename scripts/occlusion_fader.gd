@@ -42,7 +42,9 @@ func _process(delta: float) -> void:
 		var box: AABB = item.aabb
 		var target := 1.0
 		var c := box.get_center()
-		if Vector2(c.x - p.x, c.z - p.z).length() < CHECK_RADIUS + box.size.length() * 0.5:
+		if Game.cutscene_active:
+			pass
+		elif Vector2(c.x - p.x, c.z - p.z).length() < CHECK_RADIUS + box.size.length() * 0.5:
 			for sp in samples:
 				if box.has_point(sp) or box.intersects_ray(sp, to_cam) != null:
 					target = FADED_ALPHA
@@ -61,6 +63,11 @@ func _apply(item: Dictionary, alpha: float) -> void:
 		var node: Node3D = item.node
 		for n in node.find_children("*", "MeshInstance3D", true, false):
 			var mi := n as MeshInstance3D
+			if mi.material_override is BaseMaterial3D:
+				var mo := (mi.material_override as BaseMaterial3D).duplicate() as BaseMaterial3D
+				mi.material_override = mo
+				mats.append(mo)
+				continue
 			for i in mi.mesh.get_surface_count():
 				var base := mi.get_active_material(i) as BaseMaterial3D
 				if base == null:

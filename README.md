@@ -35,6 +35,7 @@ Kayıtlar her bilgisayarda ayrıdır (`%APPDATA%\Godot\app_userdata\Son Sığın
 | G / Z | Fırlat / fırlatılacak eşyayı değiştir |
 | Fare tekerleği | Yakınlaş / uzaklaş |
 | Esc | Duraklat (Kaydet, Ayarlar, Ana menü) |
+| Esc / Space (iki kez) | Ara sahneyi geç |
 
 ## Kayıt
 

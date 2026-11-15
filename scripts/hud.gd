@@ -71,6 +71,7 @@ func _ready() -> void:
 	_build_vitals()
 	_build_inventory()
 	_build_clock()
+	_build_objective()
 	_build_help()
 	_build_toast()
 	_build_prompt()
@@ -84,7 +85,6 @@ func _ready() -> void:
 		p.died.connect(_on_player_died)
 	Settings.changed.connect(_on_settings_changed)
 	_on_settings_changed()
-	show_message("Kampın girişlerini kapat: B ile barikat kur. Erzak için evleri ara.", 6.0)
 	create_tween().tween_property(_fade, "color:a", 0.0, 1.0)
 
 
@@ -93,6 +93,7 @@ func _ready() -> void:
 # ------------------------------------------------------------------
 
 func _process(delta: float) -> void:
+	_update_objective(delta)
 	var p := Game.player
 	if is_instance_valid(p):
 		_stats["health"].set_value(p.health / p.max_health)
@@ -210,6 +211,8 @@ func _update_prompt(p: Player) -> void:
 
 func _unhandled_input(event: InputEvent) -> void:
 	if _leaving or is_instance_valid(_settings) or is_instance_valid(_inventory) or is_instance_valid(_crafting):
+		return
+	if Game.cutscene_active:
 		return
 	if event.is_action_pressed("inventory") and not _game_over and not get_tree().paused:
 		_open_inventory()
@@ -422,6 +425,72 @@ func _draw_weapon_icon() -> void:
 	var id := _card_id if _card_id != "" else "fists"
 	var col: Color = HudIcons.COLORS.get(id, Color.WHITE)
 	HudIcons.draw(_weapon_icon, id, _weapon_icon.size * 0.5, 46, col)
+
+
+# ------------------------------------------------------------------
+# Görev satırı (sağ üst, saatin altında)
+# ------------------------------------------------------------------
+
+var _obj_box: VBoxContainer
+var _obj_label: Label
+var _obj_text := ""
+var _obj_timer := 0.0
+var _camp_reached := false
+
+
+func _build_objective() -> void:
+	_obj_box = VBoxContainer.new()
+	_obj_box.add_theme_constant_override("separation", 0)
+	_obj_box.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_anchor(_obj_box, Vector4(1, 0, 1, 0), Vector4(-380, 150, -28, 220))
+	_root.add_child(_obj_box)
+	var t := UITheme.label("GÖREV", 12, UITheme.ACCENT.lightened(0.35), UITheme.spaced_font())
+	t.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+	_obj_box.add_child(t)
+	_obj_label = UITheme.label("", 19, UITheme.TEXT)
+	_obj_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+	_obj_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	_shadow(_obj_label)
+	_obj_box.add_child(_obj_label)
+	_obj_box.modulate.a = 0.0
+
+
+func _current_objective() -> String:
+	var lv := Game.level
+	var p := Game.player
+	if not is_instance_valid(lv) or not is_instance_valid(p) or not Game.nav_ready:
+		return ""
+	if get_tree().get_nodes_in_group("barricades").size() > 0:
+		return ""
+	if not lv.shelter_bag_searched():
+		return "Çantanı kontrol et (E basılı tut)"
+	if not lv.shelter_door_open():
+		return "Sığınaktan çık"
+	if not _camp_reached and p.global_position.distance_to(lv.campfire_position()) < 11.0:
+		_camp_reached = true
+	if not _camp_reached:
+		return "Kavşaktaki kampa git. Yolda su bul."
+	return "Kampın girişlerini kapat (B: barikat kur)"
+
+
+func _update_objective(delta: float) -> void:
+	_obj_timer -= delta
+	if _obj_timer > 0.0:
+		return
+	_obj_timer = 0.4
+	var t := _current_objective() if not Game.cutscene_active else ""
+	if t == _obj_text:
+		return
+	var was := _obj_text
+	_obj_text = t
+	var tw := create_tween()
+	if was != "":
+		tw.tween_property(_obj_box, "modulate:a", 0.0, 0.3)
+	if t != "":
+		tw.tween_callback(func(): _obj_label.text = t)
+		tw.tween_property(_obj_box, "modulate:a", 1.0, 0.5)
+		if was != "":
+			Audio.ui("click", -10.0)
 
 
 func _build_clock() -> void:

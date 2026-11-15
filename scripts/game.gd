@@ -15,6 +15,9 @@ var player: Player
 var level: Level
 var nav_ready := false
 var ui_open := false   # envanter gibi bir pencere açıkken oyuncu saldırmaz/yürümez
+var cutscene_active := false   # ara sahne sırasında zaman durur, arayüz gizlenir
+var play_shelter_intro := false   # açılış ara sahnesinden sonra sığınak sahnesi oynasın
+var ambient_scale := 1.0   # ara sahnede ortam ışığını kısmak için
 
 var _blood_mesh: SphereMesh
 var _decal_mat: StandardMaterial3D
@@ -34,6 +37,8 @@ func _exit_tree() -> void:
 
 
 func _process(delta: float) -> void:
+	if cutscene_active:
+		return
 	var prev := hour
 	hour += delta * 24.0 / DAY_LENGTH_SEC
 	if hour >= 24.0:
@@ -169,6 +174,9 @@ func reset_run() -> void:
 	ui_open = false
 	pending_load = {}
 	loaded_from_save = false
+	cutscene_active = false
+	play_shelter_intro = false
+	ambient_scale = 1.0
 	player = null
 	level = null
 	_decals.clear()

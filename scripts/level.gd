@@ -47,6 +47,7 @@ func _ready() -> void:
 			break
 	if Game.pending_load.is_empty():
 		_scatter_pickups()
+		_setup_new_run()
 		Game.nav_ready = true
 	else:
 		Game.nav_ready = true
@@ -78,9 +79,8 @@ func _apply_save(d: Dictionary) -> void:
 	# Aranmış yerler
 	for id in d.get("searched", []):
 		var i := int(id)
-		if i >= 0 and i < _searchables.size():
-			_searchables[i].searched = true
-			_searchables[i].remove_from_group("searchables")
+		if i >= 0 and i < _searchables.size() and is_instance_valid(_searchables[i]):
+			_searchables[i].restore_searched()
 	# Yerdeki eşyalar
 	for e in d.get("pickups", []):
 		spawn_pickup(String(e.type), Game.to_vec(e.pos), false, int(e.amount), int(e.durability))
@@ -130,6 +130,10 @@ func _apply_save(d: Dictionary) -> void:
 		var rig := scene.get_node_or_null("CameraRig") as Node3D
 		if rig:
 			rig.global_position = p.global_position
+		# Sığınaktan önceki sürümlerin kayıtları: oyuncu dışarıdaysa çanta ve kapı açılmış sayılır
+		if not shelter_bag_searched() and p.global_position.distance_to(shelter_center) > 8.0:
+			shelter_bag.restore_searched()
+			shelter_door.restore_searched()
 
 
 func _process(delta: float) -> void:
@@ -214,6 +218,7 @@ func _build_town() -> void:
 	_build_cars(16)
 	_build_trees(50)
 	_build_clutter(35)
+	_build_yard()
 	_build_grass()
 
 
@@ -533,3 +538,328 @@ func _add_visual(pos: Vector3, mesh: Mesh, color: Color) -> MeshInstance3D:
 	mi.position = pos
 	props.add_child(mi)
 	return mi
+
+
+# ------------------------------------------------------------------
+# İlçe bakım sahası ve fırtına sığınağı (oyunun başladığı yer)
+# ------------------------------------------------------------------
+
+var shelter_center := Vector3(-30, 0, 30)
+var shelter_bag: Searchable
+var shelter_door: Searchable
+var _door_pivot: Node3D
+var _door_light: SpotLight3D
+var _shelter_node: Node3D
+var _yard_rect := Rect2()
+
+const SHELTER_HALF := Vector2(2.5, 2.05)   # iç yarı boyut (x, z)
+
+
+func _build_yard() -> void:
+	# Haritada boş bir köşe bul (tohum sabit olduğu için hep aynı yer çıkar)
+	var size := Vector2(17, 13)
+	var candidates := [Vector2(-30, 30), Vector2(30, 30), Vector2(-30, -30), Vector2(30, -30),
+		Vector2(-40, 20), Vector2(40, 20), Vector2(-20, 40), Vector2(20, 40), Vector2(-40, -20), Vector2(40, -20)]
+	var chosen := Vector2.INF
+	for cand in candidates:
+		if not _overlaps(Rect2(cand - size / 2.0, size)):
+			chosen = cand
+			break
+	if chosen == Vector2.INF:
+		for i in 300:
+			var c2 := Vector2(_rng.randf_range(-45, 45), _rng.randf_range(-45, 45))
+			if absf(c2.x) < 14 or absf(c2.y) < 14:
+				continue
+			if not _overlaps(Rect2(c2 - size / 2.0, size)):
+				chosen = c2
+				break
+	if chosen == Vector2.INF:
+		chosen = Vector2(-30, 30)
+	_yard_rect = Rect2(chosen - size / 2.0, size)
+	_reserve(_yard_rect)
+	shelter_center = Vector3(chosen.x - 3.0, 0, chosen.y)
+	var c := shelter_center
+
+	# Sahanın zemini: çatlak beton
+	var pad := _add_visual(Vector3(chosen.x, 0.008, chosen.y), _box_mesh(Vector3(size.x, 0.016, size.y)), Color(0.36, 0.36, 0.34))
+	pad.material_override = GroundBuilder.road_material(0, 3.0)
+	_build_shelter(c)
+
+	# Belediye kamyoneti, bariyer yığını, koniler, kum yığını, tabela
+	var truck := PropLibrary.spawn(props, "pickup_truck", c + Vector3(6.5, 0, -3.3), 5.0, 0.25, "box", Vector3(0.95, 0.9, 0.95))
+	if truck:
+		var ta := PropLibrary.aabb("pickup_truck")
+		_add_searchable(truck, Vector3(0, 0, ta.position.z * 5.0 - 0.8), "car", "Kamyoneti ara", 1.9)
+	for i in 4:
+		var bp := c + Vector3(6.2 + (i % 2) * 0.25, 0.0, 2.6 + i * 0.32)
+		CutsceneActor.spawn_prop(props, "res://assets/models/intro/barrier.glb", 1.5, bp, PI / 2.0 + _rng.randf_range(-0.1, 0.1))
+	var bshape := BoxShape3D.new()
+	bshape.size = Vector3(1.0, 1.0, 1.6)
+	var bbody := StaticBody3D.new()
+	bbody.position = c + Vector3(6.3, 0.5, 3.1)
+	var bcs := CollisionShape3D.new()
+	bcs.shape = bshape
+	bbody.add_child(bcs)
+	props.add_child(bbody)
+	for i in 5:
+		_add_cone(c + Vector3(3.6 + i * 0.55, 0, 5.0 - (i % 2) * 0.4))
+	var pile := MeshInstance3D.new()
+	var sp := SphereMesh.new()
+	sp.radius = 1.6
+	sp.height = 1.4
+	pile.mesh = sp
+	pile.material_override = _mat(Color(0.55, 0.5, 0.42))
+	pile.position = c + Vector3(-1.0, -0.2, -5.0)
+	props.add_child(pile)
+	var sign := Label3D.new()
+	sign.text = "İLÇE BAKIM SAHASI"
+	sign.font_size = 72
+	sign.outline_size = 10
+	sign.modulate = Color(0.95, 0.92, 0.85)
+	sign.position = c + Vector3(9.5, 2.3, 5.6)
+	sign.rotation.y = PI / 4.0
+	sign.pixel_size = 0.006
+	props.add_child(sign)
+	_add_box(c + Vector3(9.5, 1.0, 5.6), Vector3(0.12, 2.0, 0.12), Color(0.3, 0.3, 0.3))
+	# Çit (yer yer kopuk)
+	var fence := Color(0.45, 0.46, 0.45)
+	var x0 := _yard_rect.position.x
+	var x1 := _yard_rect.end.x
+	var z0 := _yard_rect.position.y
+	var z1 := _yard_rect.end.y
+	for seg in [[Vector2(x0, z0), Vector2(x1, z0)], [Vector2(x0, z0), Vector2(x0, z1)], [Vector2(x0, z1), Vector2(x0 + 6, z1)]]:
+		var a: Vector2 = seg[0]
+		var b2: Vector2 = seg[1]
+		var n := int(a.distance_to(b2) / 2.5)
+		for i in n:
+			if _rng.randf() < 0.18:
+				continue
+			var p := a.lerp(b2, (i + 0.5) / n)
+			var horiz := absf(b2.x - a.x) > absf(b2.y - a.y)
+			_add_box(Vector3(p.x, 0.75, p.y), Vector3(2.3, 1.5, 0.06) if horiz else Vector3(0.06, 1.5, 2.3), fence)
+
+
+func _add_cone(p: Vector3) -> void:
+	var cone := MeshInstance3D.new()
+	var cm := CylinderMesh.new()
+	cm.top_radius = 0.03
+	cm.bottom_radius = 0.16
+	cm.height = 0.5
+	cone.mesh = cm
+	cone.material_override = _mat(Color(0.95, 0.42, 0.1))
+	cone.position = p + Vector3(0, 0.25, 0)
+	props.add_child(cone)
+
+
+func _build_shelter(c: Vector3) -> void:
+	var hx := SHELTER_HALF.x
+	var hz := SHELTER_HALF.y
+	var h := 2.6
+	var t := 0.3
+	var concrete := Color(0.5, 0.5, 0.48)
+	_shelter_node = Node3D.new()
+	_shelter_node.name = "Shelter"
+	props.add_child(_shelter_node)
+	_shelter_node.position = c
+	# Duvar, çatı ve kapı ayrı grupta: oyuncu içerideyken sadece bunlar saydamlaşır
+	var shell := Node3D.new()
+	shell.name = "Shell"
+	_shelter_node.add_child(shell)
+	var walls: Array = [
+		[Vector3(-hx - t / 2, h / 2, 0), Vector3(t, h, hz * 2 + t * 2)],
+		[Vector3(0, h / 2, -hz - t / 2), Vector3(hx * 2 + t * 2, h, t)],
+		[Vector3(0, h / 2, hz + t / 2), Vector3(hx * 2 + t * 2, h, t)],
+		# Ön duvar (+X), kapı boşluğu z = 0..1.2
+		[Vector3(hx + t / 2, h / 2, (-hz - t) / 2.0), Vector3(t, h, hz + t)],
+		[Vector3(hx + t / 2, h / 2, (1.2 + hz + t) / 2.0), Vector3(t, h, hz + t - 1.2)],
+		[Vector3(hx + t / 2, 2.35, 0.6), Vector3(t, 0.5, 1.2)],
+	]
+	for w in walls:
+		var body := _add_box(c + w[0], w[1], concrete)
+		body.get_parent().remove_child(body)
+		shell.add_child(body)
+		body.position = w[0]
+	# Zemin ve tavan (görsel)
+	var floor_mi := MeshInstance3D.new()
+	floor_mi.mesh = _box_mesh(Vector3(hx * 2, 0.04, hz * 2))
+	floor_mi.material_override = _mat(Color(0.32, 0.32, 0.31))
+	floor_mi.position = Vector3(0, 0.02, 0)
+	_shelter_node.add_child(floor_mi)
+	var roof := MeshInstance3D.new()
+	roof.mesh = _box_mesh(Vector3(hx * 2 + 0.9, 0.28, hz * 2 + 0.9))
+	roof.material_override = _mat(Color(0.42, 0.42, 0.4))
+	roof.position = Vector3(0, h + 0.14, 0)
+	shell.add_child(roof)
+	# İçeride raf, sandıklar, eski bir sedye
+	var shelf := Color(0.3, 0.32, 0.3)
+	for k in 3:
+		var sb := MeshInstance3D.new()
+		sb.mesh = _box_mesh(Vector3(1.6, 0.04, 0.45))
+		sb.material_override = _mat(shelf)
+		sb.position = Vector3(-0.3, 0.45 + k * 0.6, -hz + 0.25)
+		_shelter_node.add_child(sb)
+	for k in 2:
+		var leg := MeshInstance3D.new()
+		leg.mesh = _box_mesh(Vector3(0.04, 1.75, 0.04))
+		leg.material_override = _mat(shelf)
+		leg.position = Vector3(-1.1 + k * 1.6, 0.875, -hz + 0.25)
+		_shelter_node.add_child(leg)
+	for k in 4:
+		var bx := MeshInstance3D.new()
+		bx.mesh = _box_mesh(Vector3(0.35, 0.28, 0.32))
+		bx.material_override = _mat(Color(0.5, 0.42, 0.3).darkened(k * 0.08))
+		bx.position = Vector3(-0.8 + k * 0.38, 0.62 + (k % 2) * 0.6, -hz + 0.25)
+		_shelter_node.add_child(bx)
+	var cot := MeshInstance3D.new()
+	cot.mesh = _box_mesh(Vector3(1.9, 0.35, 0.75))
+	cot.material_override = _mat(Color(0.3, 0.34, 0.27))
+	cot.position = Vector3(0.1, 0.18, hz - 0.45)
+	_shelter_node.add_child(cot)
+	# Çanta (kapının yanında) ve su şişesi (Caleb'in yanında)
+	var bag := CutsceneActor.spawn_prop(_shelter_node, "res://assets/models/intro/duffel.glb", 0.75, Vector3(hx - 0.45, 0, -0.65), 0.4)
+	shelter_bag = Searchable.new()
+	shelter_bag.table = "start_bag"
+	shelter_bag.label = "Çantanı kontrol et"
+	shelter_bag.reach = 1.5
+	bag.add_child(shelter_bag)
+	_searchables.append(shelter_bag)
+	var bottle := MeshInstance3D.new()
+	bottle.name = "WaterBottle"
+	var bc := CylinderMesh.new()
+	bc.top_radius = 0.025
+	bc.bottom_radius = 0.035
+	bc.height = 0.24
+	bottle.mesh = bc
+	var bm := StandardMaterial3D.new()
+	bm.albedo_color = Color(0.75, 0.88, 0.95, 0.55)
+	bm.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	bm.roughness = 0.1
+	bottle.material_override = bm
+	bottle.position = Vector3(-hx + 0.75, 0.12, 0.25)
+	_shelter_node.add_child(bottle)
+	# Çelik kapı (menteşe z = 0, kapı z = 0..1.2)
+	_door_pivot = Node3D.new()
+	_door_pivot.position = Vector3(hx + t / 2, 0, 0.0)
+	shell.add_child(_door_pivot)
+	var dshape := BoxShape3D.new()
+	dshape.size = Vector3(0.06, 2.1, 1.18)
+	var door := StaticBody3D.new()
+	door.position = Vector3(0, 1.05, 0.6)
+	var dmi := MeshInstance3D.new()
+	dmi.mesh = _box_mesh(Vector3(0.06, 2.1, 1.18))
+	var steel := StandardMaterial3D.new()
+	steel.albedo_color = Color(0.38, 0.4, 0.38)
+	steel.metallic = 0.6
+	steel.roughness = 0.55
+	dmi.material_override = steel
+	door.add_child(dmi)
+	var dcs := CollisionShape3D.new()
+	dcs.shape = dshape
+	door.add_child(dcs)
+	_door_pivot.add_child(door)
+	# Kapının altından sızan gün ışığı
+	var strip := MeshInstance3D.new()
+	strip.mesh = _box_mesh(Vector3(0.03, 0.035, 1.14))
+	var sm := StandardMaterial3D.new()
+	sm.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	sm.albedo_color = Color(1.0, 0.93, 0.8)
+	strip.material_override = sm
+	strip.position = Vector3(hx + 0.06, 0.018, 0.6)
+	strip.name = "DoorStrip"
+	_shelter_node.add_child(strip)
+	# Zeminde, kapıdan içeri uzanan soluk ışık lekesi
+	var glow := MeshInstance3D.new()
+	var gq := QuadMesh.new()
+	gq.size = Vector2(0.9, 1.3)
+	glow.mesh = gq
+	var gm := StandardMaterial3D.new()
+	gm.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	gm.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	gm.blend_mode = BaseMaterial3D.BLEND_MODE_ADD
+	var g := Gradient.new()
+	g.set_color(0, Color(1.0, 0.9, 0.7, 0.35))
+	g.set_color(1, Color(1.0, 0.9, 0.7, 0.0))
+	var gt := GradientTexture2D.new()
+	gt.gradient = g
+	gt.fill_from = Vector2(1.0, 0.5)
+	gt.fill_to = Vector2(0.0, 0.5)
+	gm.albedo_texture = gt
+	glow.material_override = gm
+	glow.rotation.x = -PI / 2.0
+	glow.position = Vector3(hx - 0.45, 0.045, 0.6)
+	glow.name = "DoorGlow"
+	_shelter_node.add_child(glow)
+	_door_light = SpotLight3D.new()
+	_door_light.light_color = Color(1.0, 0.9, 0.75)
+	_door_light.light_energy = 3.0
+	_door_light.spot_range = 3.2
+	_door_light.spot_angle = 75.0
+	_door_light.position = Vector3(hx + 0.05, 0.04, 0.6)
+	_shelter_node.add_child(_door_light)
+	_door_light.rotation = Vector3(-0.08, PI / 2.0, 0)
+	shelter_door = Searchable.new()
+	shelter_door.table = "door"
+	shelter_door.label = "Kapıyı aç"
+	shelter_door.reach = 1.4
+	shelter_door.silent = true
+	shelter_door.position = Vector3(hx - 0.35, 0, 0.6)
+	_shelter_node.add_child(shelter_door)
+	_searchables.append(shelter_door)
+	shelter_door.opened.connect(_open_shelter_door)
+	_fader.add(shell, AABB(Vector3(-hx - 0.5, 0, -hz - 0.5), Vector3(hx * 2 + 1.0, h + 0.3, hz * 2 + 1.0)), 1.0)
+
+
+func _open_shelter_door() -> void:
+	if not is_instance_valid(_door_pivot):
+		return
+	var tw := create_tween()
+	tw.tween_property(_door_pivot, "rotation:y", deg_to_rad(105.0), 0.9).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+	if is_instance_valid(_door_light):
+		_door_light.visible = false
+	for nm in ["DoorStrip", "DoorGlow"]:
+		var n := _shelter_node.get_node_or_null(nm)
+		if n:
+			n.visible = false
+	Audio.play_3d("hit", _door_pivot.global_position + Vector3.UP, -6.0, 6.0, 0.3)
+
+
+func shelter_door_open() -> bool:
+	return is_instance_valid(shelter_door) and shelter_door.searched
+
+
+func shelter_bag_searched() -> bool:
+	return is_instance_valid(shelter_bag) and shelter_bag.searched
+
+
+func shelter_node() -> Node3D:
+	return _shelter_node
+
+
+## Oyuncunun sığınakta oturduğu nokta (kapıya doğru, +X bakar)
+func shelter_start() -> Vector3:
+	return shelter_center + Vector3(-SHELTER_HALF.x + 0.55, 0.05, -0.1)
+
+
+## Yeni oyun: oyuncu sığınakta, elinde hiçbir şey yok, yorgun ve susuz.
+func _setup_new_run() -> void:
+	var p := Game.player
+	if not is_instance_valid(p):
+		return
+	p.global_position = shelter_start()
+	p.model_pivot.rotation.y = PI / 2.0
+	p.inv.items.clear()
+	p.inv.weapons.clear()
+	p.inv.equip(-1)
+	p.inv.changed.emit()
+	p.health = 72.0
+	p.thirst = 26.0
+	p.hunger = 58.0
+	var rig := get_tree().current_scene.get_node_or_null("CameraRig") as Node3D
+	if rig:
+		rig.global_position = p.global_position
+	# Sahada birkaç işe yarar şey
+	spawn_pickup("wood", shelter_center + Vector3(4.0, 0, -4.4), false, 2)
+	spawn_pickup("water", shelter_center + Vector3(7.8, 0, -1.2), false, 1)
+	if Game.play_shelter_intro:
+		var intro := ShelterIntro.new()
+		get_tree().current_scene.add_child(intro)

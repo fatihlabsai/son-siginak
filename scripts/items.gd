@@ -60,6 +60,10 @@ const LOOT := {
 		["food", 15, 1, 2], ["water", 15, 1, 2], ["medkit", 10, 1, 1], ["pistol_ammo", 15, 4, 10],
 		["shells", 8, 2, 5], ["nails", 15, 4, 10], ["wood", 15, 1, 2], ["axe", 3, 1, 1],
 		["cloth", 8, 1, 2], ["", 10, 0, 0]]},
+	# Sığınaktaki çanta ve kapı (sabit içerik)
+	"start_bag": {"rolls": [1, 1], "time": 1.4, "noise": 2.0, "items": [], "fixed": [
+		["knife", 1], ["pistol", 1], ["pistol_ammo", 8], ["food", 1], ["bandage", 1], ["nails", 6], ["cloth", 2]]},
+	"door": {"rolls": [1, 1], "time": 0.8, "noise": 3.0, "items": [], "fixed": []},
 	"zombie": {"rolls": [1, 1], "time": 0.0, "noise": 0.0, "items": [
 		["food", 15, 1, 1], ["water", 15, 1, 1], ["pistol_ammo", 20, 2, 5], ["shells", 6, 1, 2],
 		["medkit", 6, 1, 1], ["knife", 3, 1, 1], ["cloth", 10, 1, 1], ["", 40, 0, 0]]},
@@ -88,6 +92,8 @@ static func roll(table: String, rng: RandomNumberGenerator, loot_mult := 1.0) ->
 	var t: Dictionary = LOOT.get(table, {})
 	if t.is_empty():
 		return []
+	if t.has("fixed"):
+		return (t.fixed as Array).duplicate(true)
 	var rolls: int = rng.randi_range(t.rolls[0], t.rolls[1])
 	rolls = maxi(1, int(round(rolls * loot_mult)))
 	var total := 0

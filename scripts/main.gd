@@ -44,7 +44,7 @@ func _update_lighting() -> void:
 	var env := world_env.environment
 	env.background_color = NIGHT_SKY.lerp(DAY_SKY, daylight)
 	env.ambient_light_color = Color(0.35, 0.4, 0.6).lerp(Color(0.6, 0.62, 0.6), daylight)
-	env.ambient_light_energy = lerpf(0.15, 0.5, daylight)
+	env.ambient_light_energy = lerpf(0.15, 0.5, daylight) * Game.ambient_scale
 	env.fog_light_color = env.background_color
 	env.fog_density = lerpf(0.018, 0.006, daylight)
 	_update_audio(daylight)

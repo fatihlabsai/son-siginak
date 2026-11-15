@@ -7,6 +7,10 @@ extends Node3D
 @export var table := "crate"
 @export var label := "Ara"
 @export var reach := 1.6
+## true: açılınca "Hiçbir şey bulamadın" demez (kapı gibi)
+@export var silent := false
+
+signal opened
 
 var searched := false
 var search_time := 2.0
@@ -28,6 +32,14 @@ func prompt_text() -> String:
 func open() -> Array:
 	searched = true
 	remove_from_group("searchables")
+	opened.emit()
 	var rng := RandomNumberGenerator.new()
 	rng.randomize()
 	return Items.roll(table, rng, Settings.diff("loot"))
+
+
+## Kayıttan yükleme: aranmış olarak işaretle (kapı açık kalsın vb.)
+func restore_searched() -> void:
+	searched = true
+	remove_from_group("searchables")
+	opened.emit()
