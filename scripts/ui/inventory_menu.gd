@@ -132,7 +132,8 @@ func _refresh() -> void:
 		_weapons_box.add_child(_weapon_row(i, wp.id, int(wp.durability), inv.equipped == i))
 
 	# Eşyalar (tür sırasına göre)
-	var order := ["food", "water", "medkit", "pistol_ammo", "shells", "wood", "nails", "scrap"]
+	var order := ["food", "water", "medkit", "bandage", "molotov", "noisemaker", "pistol_ammo", "shells",
+		"wood", "nails", "scrap", "cloth", "alcohol"]
 	var any := false
 	for id in order:
 		if inv.count(id) > 0:
@@ -176,9 +177,9 @@ func _item_row(id: String, count: int) -> Control:
 	mid.add_child(UITheme.label("%s  x%d" % [Items.item_name(id), count], 18))
 	mid.add_child(UITheme.label("%.2f kg" % (Items.weight(id) * count), 13, UITheme.TEXT_DIM))
 	var t: String = Items.info(id).get("type", "")
-	if t in ["food", "water", "medkit"]:
+	if t in ["food", "water", "medkit", "bandage"]:
 		row.add_child(_small_button("KULLAN", _player.use_item.bind(id)))
-	var drop_count := count if t in ["ammo", "material"] else 1
+	var drop_count := count if t in ["ammo", "material", "throwable"] else 1
 	row.add_child(_small_button("BIRAK", _player.drop_item.bind(id, drop_count)))
 	return row
 

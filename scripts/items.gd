@@ -15,6 +15,9 @@ const DB := {
 		"stamina": 9.0, "noise": 4.0, "knockback": 6.0, "arc": 0.25, "targets": 3, "durability": 45, "weight": 1.2},
 	"axe": {"name": "Yangın baltası", "type": "melee", "damage": 70.0, "range": 2.0, "cooldown": 1.05,
 		"stamina": 14.0, "noise": 4.0, "knockback": 3.5, "arc": 0.35, "targets": 2, "durability": 35, "weight": 2.5},
+	"nail_bat": {"name": "Çivili sopa", "type": "melee", "damage": 55.0, "range": 2.1, "cooldown": 0.75,
+		"stamina": 10.0, "noise": 4.0, "knockback": 6.0, "arc": 0.25, "targets": 3, "durability": 60, "weight": 1.4,
+		"model": "bat"},
 	# --- Ateşli ---
 	"pistol": {"name": "Tabanca", "type": "gun", "damage": 75.0, "pellets": 1, "spread": 0.025,
 		"range": 28.0, "cooldown": 0.4, "noise": 32.0, "ammo": "pistol_ammo", "weight": 1.0},
@@ -24,6 +27,10 @@ const DB := {
 	"food": {"name": "Konserve", "type": "food", "weight": 0.4},
 	"water": {"name": "Su şişesi", "type": "water", "weight": 0.5},
 	"medkit": {"name": "İlk yardım kiti", "type": "medkit", "weight": 0.3},
+	"bandage": {"name": "Bandaj", "type": "bandage", "weight": 0.1},
+	# --- Fırlatılabilir (G ile at, Z ile değiştir) ---
+	"molotov": {"name": "Molotof", "type": "throwable", "weight": 0.6},
+	"noisemaker": {"name": "Gürültücü", "type": "throwable", "weight": 0.3},
 	# --- Mermi ---
 	"pistol_ammo": {"name": "Tabanca mermisi", "type": "ammo", "weight": 0.02},
 	"shells": {"name": "Fişek", "type": "ammo", "weight": 0.05},
@@ -31,6 +38,8 @@ const DB := {
 	"wood": {"name": "Tahta", "type": "material", "weight": 1.0},
 	"nails": {"name": "Çivi", "type": "material", "weight": 0.05},
 	"scrap": {"name": "Hurda metal", "type": "material", "weight": 0.6},
+	"cloth": {"name": "Bez", "type": "material", "weight": 0.1},
+	"alcohol": {"name": "Alkol", "type": "material", "weight": 0.5},
 }
 
 ## Yağma tabloları: [eşya, ağırlık(olasılık), en az, en çok]. "" = boş çıktı.
@@ -38,19 +47,22 @@ const LOOT := {
 	"house": {"rolls": [3, 5], "time": 3.5, "noise": 9.0, "items": [
 		["food", 25, 1, 2], ["water", 25, 1, 2], ["medkit", 8, 1, 1], ["pistol_ammo", 12, 4, 10],
 		["shells", 5, 2, 5], ["knife", 4, 1, 1], ["bat", 4, 1, 1], ["axe", 2, 1, 1], ["pistol", 2, 1, 1],
-		["shotgun", 1, 1, 1], ["wood", 10, 1, 3], ["nails", 8, 3, 8], ["", 12, 0, 0]]},
+		["shotgun", 1, 1, 1], ["wood", 10, 1, 3], ["nails", 8, 3, 8], ["cloth", 14, 1, 3],
+		["alcohol", 8, 1, 1], ["bandage", 5, 1, 2], ["", 12, 0, 0]]},
 	"car": {"rolls": [1, 3], "time": 2.5, "noise": 6.0, "items": [
 		["water", 15, 1, 1], ["food", 10, 1, 1], ["pistol_ammo", 15, 3, 8], ["shells", 6, 2, 4],
-		["bat", 5, 1, 1], ["pistol", 3, 1, 1], ["scrap", 15, 1, 2], ["", 30, 0, 0]]},
+		["bat", 5, 1, 1], ["pistol", 3, 1, 1], ["scrap", 15, 1, 2], ["alcohol", 6, 1, 1],
+		["cloth", 6, 1, 2], ["", 30, 0, 0]]},
 	"dumpster": {"rolls": [1, 2], "time": 2.0, "noise": 6.0, "items": [
 		["food", 25, 1, 1], ["water", 10, 1, 1], ["scrap", 20, 1, 2], ["wood", 10, 1, 2],
-		["knife", 3, 1, 1], ["", 35, 0, 0]]},
+		["cloth", 15, 1, 2], ["alcohol", 5, 1, 1], ["knife", 3, 1, 1], ["", 35, 0, 0]]},
 	"crate": {"rolls": [1, 3], "time": 1.5, "noise": 4.0, "items": [
 		["food", 15, 1, 2], ["water", 15, 1, 2], ["medkit", 10, 1, 1], ["pistol_ammo", 15, 4, 10],
-		["shells", 8, 2, 5], ["nails", 15, 4, 10], ["wood", 15, 1, 2], ["axe", 3, 1, 1], ["", 10, 0, 0]]},
+		["shells", 8, 2, 5], ["nails", 15, 4, 10], ["wood", 15, 1, 2], ["axe", 3, 1, 1],
+		["cloth", 8, 1, 2], ["", 10, 0, 0]]},
 	"zombie": {"rolls": [1, 1], "time": 0.0, "noise": 0.0, "items": [
 		["food", 15, 1, 1], ["water", 15, 1, 1], ["pistol_ammo", 20, 2, 5], ["shells", 6, 1, 2],
-		["medkit", 6, 1, 1], ["knife", 3, 1, 1], ["", 40, 0, 0]]},
+		["medkit", 6, 1, 1], ["knife", 3, 1, 1], ["cloth", 10, 1, 1], ["", 40, 0, 0]]},
 }
 
 

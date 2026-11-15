@@ -12,7 +12,7 @@ const MENU_SCENE := "res://scenes/main_menu.tscn"
 const HELP_ROWS := [
 	["WASD", "Yürü"], ["Shift", "Koş"], ["Sol tık", "Vur"], ["Sağ tık + Sol tık", "Ateş et"],
 	["Q", "Silah değiştir"], ["E", "Al  /  basılı tut: ara, onar"], ["Tab", "Envanter"], ["B", "İnşa (barikat, tuzak)"], ["F", "Fener"],
-	["1 2 3", "Ye / İç / Tedavi"], ["Esc", "Menü"],
+	["1 2 3 4", "Ye / İç / Kit / Bandaj"], ["C", "Üretim"], ["G", "Fırlat (Z: değiştir)"], ["Esc", "Menü"],
 ]
 
 var _root: Control
@@ -39,6 +39,7 @@ var _weapon_icon: Control
 var _dur_bar: ProgressBar
 var _card_id := ""
 var _inventory: InventoryMenu
+var _crafting: CraftingMenu
 var _build_panel: PanelContainer
 var _build_cards: Array[PanelContainer] = []
 var _build_costs: Array[Label] = []
@@ -106,6 +107,10 @@ func _process(delta: float) -> void:
 		_slots["food"].set_count(p.inv.count("food"))
 		_slots["water"].set_count(p.inv.count("water"))
 		_slots["medkit"].set_count(p.inv.count("medkit"))
+		_slots["bandage"].set_count(p.inv.count("bandage"))
+		var th := p.current_throwable()
+		_slots["throw"].kind = th if th != "" else p.throw_id
+		_slots["throw"].set_count(p.inv.count(_slots["throw"].kind))
 		_tags["heavy"].visible = p.inv.total_weight() > p.inv.max_weight * 0.9
 		_update_weapon_card(p)
 		_update_build_panel(p)
@@ -204,10 +209,13 @@ func _update_prompt(p: Player) -> void:
 # ------------------------------------------------------------------
 
 func _unhandled_input(event: InputEvent) -> void:
-	if _leaving or is_instance_valid(_settings) or is_instance_valid(_inventory):
+	if _leaving or is_instance_valid(_settings) or is_instance_valid(_inventory) or is_instance_valid(_crafting):
 		return
 	if event.is_action_pressed("inventory") and not _game_over and not get_tree().paused:
 		_open_inventory()
+		get_viewport().set_input_as_handled()
+	elif event.is_action_pressed("craft") and not _game_over and not get_tree().paused:
+		_open_crafting()
 		get_viewport().set_input_as_handled()
 	elif event.is_action_pressed("toggle_help"):
 		Settings.show_help = not Settings.show_help
@@ -233,6 +241,19 @@ func _open_inventory() -> void:
 
 func _on_inventory_closed() -> void:
 	Game.ui_open = false
+
+
+func _open_crafting() -> void:
+	if not is_instance_valid(Game.player) or Game.player.is_dead:
+		return
+	if Game.player.build.active:
+		Game.player.build.set_active(false)
+	_crafting = CraftingMenu.new()
+	_crafting.setup(Game.player)
+	_crafting.closed.connect(_on_inventory_closed)
+	_root.add_child(_crafting)
+	_root.move_child(_fade, -1)
+	Game.ui_open = true
 
 
 func _on_settings_changed() -> void:
@@ -325,13 +346,20 @@ func _build_inventory() -> void:
 	row.add_theme_constant_override("separation", 8)
 	row.alignment = BoxContainer.ALIGNMENT_END
 	row.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	_anchor(row, Vector4(1, 1, 1, 1), Vector4(-600, -98, -28, -28))
+	_anchor(row, Vector4(1, 1, 1, 1), Vector4(-760, -98, -28, -28))
 	_root.add_child(row)
 
-	for def in [["food", "1"], ["water", "2"], ["medkit", "3"]]:
+	for def in [["food", "1"], ["water", "2"], ["medkit", "3"], ["bandage", "4"]]:
 		var slot := HudSlot.new(def[0], def[1])
 		row.add_child(slot)
 		_slots[def[0]] = slot
+	var tgap := Control.new()
+	tgap.custom_minimum_size.x = 6
+	row.add_child(tgap)
+	var tslot := HudSlot.new("molotov", "G")
+	tslot.tooltip_text = "Z: değiştir"
+	row.add_child(tslot)
+	_slots["throw"] = tslot
 
 	var gap := Control.new()
 	gap.custom_minimum_size.x = 6

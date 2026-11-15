@@ -56,6 +56,11 @@ var repairing: Barricade = null
 var repair_progress := 0.0
 var build := BuildMode.new()
 const REPAIR_TIME := 1.4
+## Seçili fırlatılabilir (molotov / noisemaker)
+var throw_id := "molotov"
+const THROWABLES := ["molotov", "noisemaker"]
+const THROW_RANGE := 12.0
+var _throw_timer := 0.0
 
 var _attack_timer := 0.0
 var _noise_timer := 0.0
@@ -148,6 +153,7 @@ func _physics_process(delta: float) -> void:
 		return
 
 	_attack_timer -= delta
+	_throw_timer -= delta
 	_update_aim_point()
 	_update_survival(delta)
 	var ui_open := Game.ui_open
@@ -269,6 +275,12 @@ func _unhandled_input(event: InputEvent) -> void:
 		use_item("water")
 	elif event.is_action_pressed("use_medkit"):
 		use_item("medkit")
+	elif event.is_action_pressed("use_bandage"):
+		use_item("bandage")
+	elif event.is_action_pressed("switch_throwable"):
+		cycle_throwable()
+	elif event.is_action_pressed("throw") and searching == null and repairing == null and not build.active:
+		throw_selected()
 
 
 # ------------------------------------------------------------------
@@ -508,9 +520,10 @@ func _update_held_weapon() -> void:
 	_held_id = id
 	for c in _hand.get_children():
 		c.queue_free()
-	if not HELD.has(id) or not PropLibrary.has(id):
+	var mid: String = Items.info(id).get("model", id)
+	if not HELD.has(mid) or not PropLibrary.has(mid):
 		return
-	var h: Dictionary = HELD[id]
+	var h: Dictionary = HELD[mid]
 	var parent_scale := model_scale if model_scale > 0.0 else 1.0
 	var k := float(h.size) / float(h.nlen) / parent_scale
 
@@ -528,13 +541,67 @@ func _update_held_weapon() -> void:
 	tside = tdir.cross(tup).normalized()
 	var t := Basis(tdir, tup, tside)
 
-	var model := PropLibrary.instance(id, k)
+	var model := PropLibrary.instance(mid, k)
 	model.position = -(h.grip as Vector3) * k
 	var pivot := Node3D.new()
 	pivot.basis = t * m.inverse()
 	pivot.position = HAND_GRIP_OFFSET / parent_scale
 	pivot.add_child(model)
 	_hand.add_child(pivot)
+
+
+# ------------------------------------------------------------------
+# Fırlatma (G at, Z değiştir)
+# ------------------------------------------------------------------
+
+## Seçili fırlatılabilir yoksa elde olan diğerine geçer. Hiçbiri yoksa "" döner.
+func current_throwable() -> String:
+	if inv.count(throw_id) > 0:
+		return throw_id
+	for t in THROWABLES:
+		if inv.count(t) > 0:
+			return t
+	return ""
+
+
+func cycle_throwable() -> void:
+	var start := THROWABLES.find(throw_id)
+	for i in range(1, THROWABLES.size() + 1):
+		var t: String = THROWABLES[(start + i) % THROWABLES.size()]
+		if inv.count(t) > 0:
+			throw_id = t
+			Audio.play_2d("flashlight", -10.0)
+			message.emit("Fırlatılacak: %s (%d)" % [Items.item_name(t), inv.count(t)])
+			inv.changed.emit()
+			return
+	message.emit("Fırlatacak bir şeyin yok. (C: üretim)")
+
+
+func throw_selected() -> void:
+	var id := current_throwable()
+	if id == "":
+		message.emit("Fırlatacak bir şeyin yok. (C: üretim)")
+		return
+	if _throw_timer > 0.0 or stamina < 6.0:
+		return
+	throw_id = id
+	_throw_timer = 0.9
+	stamina = maxf(stamina - 6.0, 0.0)
+	var to := aim_point
+	var flat := Vector3(to.x - global_position.x, 0.0, to.z - global_position.z)
+	if flat.length() > THROW_RANGE:
+		flat = flat.normalized() * THROW_RANGE
+	if flat.length() < 1.0:
+		flat = get_facing() * 3.0
+	to = Vector3(global_position.x + flat.x, global_position.y, global_position.z + flat.z)
+	_face_towards(flat, 0.0, true)
+	if not _animator.play_once("attack"):
+		_placeholder_lunge()
+	Audio.play_3d("swing", global_position + Vector3.UP, -4.0, 4.0)
+	inv.remove(id, 1)
+	var from := global_position + Vector3.UP * 1.5 + flat.normalized() * 0.4
+	Throwable.launch(get_tree().current_scene, id, from, to, self)
+	Game.make_noise(global_position, 3.0)
 
 
 # ------------------------------------------------------------------
@@ -685,10 +752,15 @@ func use_item(type: String) -> void:
 				message.emit("Yaran yok.")
 				return
 			health = minf(health + 50.0, max_health)
+		"bandage":
+			if health >= max_health:
+				message.emit("Yaran yok.")
+				return
+			health = minf(health + 20.0, max_health)
 		_:
 			return
 	inv.remove(type, 1)
-	var use_sounds := {"food": "eat", "water": "drink", "medkit": "bandage"}
+	var use_sounds := {"food": "eat", "water": "drink", "medkit": "bandage", "bandage": "bandage"}
 	Audio.play_2d(use_sounds[type], -4.0)
 	message.emit("%s kullanıldı." % Items.item_name(type))
 

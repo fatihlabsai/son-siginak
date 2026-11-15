@@ -465,7 +465,9 @@ func _build_controls() -> Control:
 		["Tab", "Envanter"],
 		["B", "İnşa: barikat / tuzak"],
 		["F", "Fener"],
-		["1  /  2  /  3", "Ye  /  İç  /  İlk yardım"],
+		["1  /  2  /  3  /  4", "Ye  /  İç  /  İlk yardım  /  Bandaj"],
+		["C", "Üretim (bandaj, molotof, onarım...)"],
+		["G  /  Z", "Fırlat  /  fırlatılacağı değiştir"],
 		["Fare tekerleği", "Yakınlaş / uzaklaş"],
 		["Esc", "Duraklat"],
 	]

@@ -30,7 +30,9 @@ Kayıtlar her bilgisayarda ayrıdır (`%APPDATA%\Godot\app_userdata\Son Sığın
 | Tab | Envanter |
 | B | İnşa modu (1/2/3 seç, sol tık kur, R döndür) |
 | F | Fener |
-| 1 / 2 / 3 | Konserve ye / Su iç / İlk yardım |
+| 1 / 2 / 3 / 4 | Konserve ye / Su iç / İlk yardım / Bandaj |
+| C | Üretim: bandaj, molotof, gürültücü; kamp ateşinde çivili sopa ve silah onarımı |
+| G / Z | Fırlat / fırlatılacak eşyayı değiştir |
 | Fare tekerleği | Yakınlaş / uzaklaş |
 | Esc | Duraklat (Kaydet, Ayarlar, Ana menü) |
 

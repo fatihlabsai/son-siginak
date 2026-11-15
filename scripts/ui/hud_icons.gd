@@ -23,6 +23,12 @@ const COLORS := {
 	"wood": Color(0.9, 0.9, 0.9),
 	"nails": Color(0.75, 0.77, 0.8),
 	"scrap": Color(0.9, 0.9, 0.9),
+	"nail_bat": Color(0.85, 0.75, 0.6),
+	"bandage": Color(0.95, 0.93, 0.88),
+	"molotov": Color(0.95, 0.95, 0.95),
+	"noisemaker": Color(0.85, 0.85, 0.85),
+	"cloth": Color(0.9, 0.9, 0.9),
+	"alcohol": Color(0.95, 0.95, 0.95),
 }
 
 
@@ -63,7 +69,7 @@ static func _draw_shape(ci: CanvasItem, kind: String, c: Vector2, s: float, col:
 				var o := c + Vector2((i - 1) * 0.3, 0.05) * s
 				ci.draw_rect(Rect2(o + Vector2(-0.1, -0.12) * s, Vector2(0.2, 0.5) * s), col.darkened(0.15))
 				ci.draw_colored_polygon(_pts(o, s, [Vector2(-0.1, -0.12), Vector2(0.1, -0.12), Vector2(0, -0.42)]), col)
-		"knife", "bat", "axe", "pistol", "shotgun", "fists", "wood", "nails", "scrap", "shells", "pistol_ammo":
+		"knife", "bat", "axe", "pistol", "shotgun", "fists", "wood", "nails", "scrap", "shells", "pistol_ammo", "nail_bat", "bandage", "molotov", "noisemaker", "cloth", "alcohol":
 			_draw_item(ci, kind, c, s, col)
 		"sun":
 			ci.draw_circle(c, s * 0.22, col)
@@ -87,7 +93,7 @@ static func _draw_shape(ci: CanvasItem, kind: String, c: Vector2, s: float, col:
 ## Silah ve malzeme ikonları: birim karede (-0.5..0.5) çizilir, sonra döndürülüp ölçeklenir.
 static func _draw_item(ci: CanvasItem, kind: String, c: Vector2, s: float, col: Color) -> void:
 	var rot := 0.0
-	if kind in ["knife", "bat", "axe"]:
+	if kind in ["knife", "bat", "axe", "nail_bat"]:
 		rot = -PI / 4.0
 	ci.draw_set_transform(c, rot, Vector2(s, s))
 	var dark := Color(col.darkened(0.55), col.a)
@@ -131,6 +137,50 @@ static func _draw_item(ci: CanvasItem, kind: String, c: Vector2, s: float, col: 
 				var x := -0.2 + i * 0.26
 				ci.draw_rect(Rect2(x - 0.09, -0.32, 0.18, 0.46), Color(0.8, 0.15, 0.12, col.a))
 				ci.draw_rect(Rect2(x - 0.1, 0.14, 0.2, 0.14), Color(0.85, 0.7, 0.3, col.a))
+		"nail_bat":
+			ci.draw_colored_polygon(PackedVector2Array([Vector2(-0.5, -0.04), Vector2(0.05, -0.065), Vector2(0.5, -0.1),
+				Vector2(0.5, 0.1), Vector2(0.05, 0.065), Vector2(-0.5, 0.04)]), Color(0.62, 0.44, 0.26, col.a))
+			ci.draw_rect(Rect2(-0.5, -0.045, 0.2, 0.09), dark)
+			var steel := Color(0.82, 0.84, 0.88, col.a)
+			for i in 4:
+				var x := 0.14 + i * 0.1
+				ci.draw_line(Vector2(x, -0.08), Vector2(x - 0.03, -0.2), steel, 0.035)
+				ci.draw_line(Vector2(x + 0.05, 0.08), Vector2(x + 0.08, 0.2), steel, 0.035)
+		"bandage":
+			# Sarılı bandaj rulosu + sarkan uç
+			ci.draw_rect(Rect2(-0.1, 0.0, 0.5, 0.16), Color(col.darkened(0.08), col.a))
+			ci.draw_circle(Vector2(-0.12, -0.04), 0.3, col)
+			ci.draw_circle(Vector2(-0.12, -0.04), 0.12, Color(col.darkened(0.3), col.a))
+			ci.draw_arc(Vector2(-0.12, -0.04), 0.21, 0.0, TAU, 16, Color(col.darkened(0.15), col.a), 0.025)
+			ci.draw_rect(Rect2(0.26, -0.01, 0.06, 0.18), Color(0.8, 0.15, 0.12, col.a))
+		"molotov":
+			var glass := Color(0.45, 0.65, 0.35, col.a)
+			ci.draw_colored_polygon(PackedVector2Array([Vector2(-0.07, -0.22), Vector2(0.07, -0.22), Vector2(0.07, -0.08),
+				Vector2(0.2, 0.02), Vector2(0.2, 0.46), Vector2(-0.2, 0.46), Vector2(-0.2, 0.02), Vector2(-0.07, -0.08)]), glass)
+			ci.draw_rect(Rect2(-0.2, 0.18, 0.4, 0.28), Color(0.85, 0.6, 0.2, col.a * 0.8))
+			ci.draw_rect(Rect2(-0.06, -0.34, 0.12, 0.13), Color(0.85, 0.82, 0.72, col.a))
+			ci.draw_colored_polygon(PackedVector2Array([Vector2(-0.1, -0.33), Vector2(0.0, -0.52), Vector2(0.12, -0.36), Vector2(0.02, -0.3)]), Color(1.0, 0.55, 0.1, col.a))
+		"noisemaker":
+			ci.draw_rect(Rect2(-0.24, -0.2, 0.48, 0.5), Color(0.6, 0.62, 0.64, col.a))
+			ci.draw_rect(Rect2(-0.24, -0.06, 0.48, 0.08), dark)
+			ci.draw_circle(Vector2(0.0, -0.3), 0.07, Color(0.9, 0.15, 0.1, col.a))
+			for i in 2:
+				var r := 0.36 + i * 0.1
+				ci.draw_arc(Vector2(0.0, 0.05), r, -0.5, 0.5, 8, col, 0.035)
+				ci.draw_arc(Vector2(0.0, 0.05), r, PI - 0.5, PI + 0.5, 8, col, 0.035)
+		"cloth":
+			var fab := Color(0.75, 0.68, 0.55, col.a)
+			ci.draw_colored_polygon(PackedVector2Array([Vector2(-0.42, -0.25), Vector2(0.38, -0.32), Vector2(0.44, 0.22),
+				Vector2(0.1, 0.34), Vector2(-0.4, 0.28)]), fab)
+			ci.draw_line(Vector2(-0.3, -0.1), Vector2(0.32, -0.16), Color(fab.darkened(0.25), col.a), 0.03)
+			ci.draw_line(Vector2(-0.3, 0.08), Vector2(0.34, 0.04), Color(fab.darkened(0.25), col.a), 0.03)
+		"alcohol":
+			var bottle := Color(0.55, 0.35, 0.2, col.a)
+			ci.draw_rect(Rect2(-0.18, -0.08, 0.36, 0.56), bottle)
+			ci.draw_colored_polygon(PackedVector2Array([Vector2(-0.18, -0.08), Vector2(-0.06, -0.24), Vector2(0.06, -0.24), Vector2(0.18, -0.08)]), bottle)
+			ci.draw_rect(Rect2(-0.06, -0.44, 0.12, 0.22), bottle)
+			ci.draw_rect(Rect2(-0.07, -0.5, 0.14, 0.07), dark)
+			ci.draw_rect(Rect2(-0.14, 0.08, 0.28, 0.2), Color(0.92, 0.88, 0.75, col.a))
 		"pistol_ammo":
 			ci.draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
 			_draw_shape(ci, "ammo", c, s, col)

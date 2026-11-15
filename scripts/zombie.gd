@@ -118,6 +118,9 @@ func _physics_process(delta: float) -> void:
 		return
 
 	_attack_timer -= delta
+	_update_burning(delta)
+	if is_dead:
+		return
 	_sense_timer -= delta
 
 	var player: Player = null
@@ -361,8 +364,72 @@ func take_damage(amount: float, dir := Vector3.ZERO, knockback := 3.5) -> void:
 		_start_chase(Game.player)
 
 
+## Ateş hasarı (molotof): geri itme, kan ve kovalamaya başlatma yok.
+## Ateşe değen zombi 4 sn daha yanmaya devam eder (saniyede 14 hasar).
+const AFTERBURN := 4.0
+const AFTERBURN_DPS := 14.0
+var _burning := 0.0
+var _flames: CPUParticles3D
+
+func burn(amount: float) -> void:
+	if is_dead:
+		return
+	health -= amount
+	_burning = AFTERBURN
+	_set_flames(true)
+	if health <= 0.0:
+		_die()
+
+
+func _update_burning(delta: float) -> void:
+	if _burning <= 0.0:
+		return
+	_burning -= delta
+	health -= AFTERBURN_DPS * delta
+	if health <= 0.0:
+		_die()
+	if _burning <= 0.0 or is_dead:
+		_burning = 0.0
+		_set_flames(false)
+
+
+func _set_flames(on: bool) -> void:
+	if on and _flames == null:
+		_flames = CPUParticles3D.new()
+		_flames.amount = 24
+		_flames.lifetime = 0.5
+		_flames.emission_shape = CPUParticles3D.EMISSION_SHAPE_BOX
+		_flames.emission_box_extents = Vector3(0.25, 0.7, 0.25)
+		_flames.position.y = 0.9
+		_flames.direction = Vector3.UP
+		_flames.spread = 10.0
+		_flames.gravity = Vector3(0, 2.5, 0)
+		_flames.initial_velocity_min = 0.3
+		_flames.initial_velocity_max = 0.9
+		var grad := Gradient.new()
+		grad.set_color(0, Color(1.0, 0.8, 0.3, 0.95))
+		grad.set_color(1, Color(0.15, 0.1, 0.1, 0.0))
+		grad.add_point(0.4, Color(1.0, 0.38, 0.05, 0.85))
+		_flames.color_ramp = grad
+		var quad := QuadMesh.new()
+		quad.size = Vector2(0.22, 0.42)
+		var mat := StandardMaterial3D.new()
+		mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+		mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+		mat.billboard_mode = BaseMaterial3D.BILLBOARD_PARTICLES
+		mat.vertex_color_use_as_albedo = true
+		mat.albedo_texture = Throwable.flame_tex()
+		quad.material = mat
+		_flames.mesh = quad
+		add_child(_flames)
+	if _flames:
+		_flames.emitting = on
+
+
 func _die() -> void:
 	is_dead = true
+	_burning = 0.0
+	_set_flames(false)
 	state = State.DEAD
 	remove_from_group("zombies")
 	collision_layer = 0

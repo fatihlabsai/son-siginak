@@ -24,10 +24,11 @@ func _ready() -> void:
 	_t = randf() * TAU
 	_visual = Node3D.new()
 	add_child(_visual)
-	if MODEL_SIZES.has(item_type) and PropLibrary.has(item_type):
-		var size: float = MODEL_SIZES[item_type]
-		var m := PropLibrary.instance(item_type, size)
-		var a := PropLibrary.aabb(item_type)
+	var mid: String = Items.info(item_type).get("model", item_type)
+	if MODEL_SIZES.has(mid) and PropLibrary.has(mid):
+		var size: float = MODEL_SIZES[mid]
+		var m := PropLibrary.instance(mid, size)
+		var a := PropLibrary.aabb(mid)
 		m.position = -a.get_center() * size
 		var tilt := Node3D.new()
 		tilt.rotation_degrees = Vector3(0, 0, 70)
@@ -78,6 +79,10 @@ func _color() -> Color:
 			return Color(1.0, 0.55, 0.25)
 		"material":
 			return Color(0.75, 0.65, 0.5)
+		"bandage":
+			return Color(0.95, 0.95, 0.95)
+		"throwable":
+			return Color(1.0, 0.5, 0.15)
 	return Color.WHITE
 
 
@@ -112,6 +117,22 @@ func _build_placeholder() -> void:
 			var sheet := BoxMesh.new()
 			sheet.size = Vector3(0.45, 0.03, 0.35)
 			mesh = sheet
+		"bandage", "noisemaker":
+			var roll := CylinderMesh.new()
+			roll.top_radius = 0.08
+			roll.bottom_radius = 0.08
+			roll.height = 0.12
+			mesh = roll
+		"molotov", "alcohol":
+			var bottle := CylinderMesh.new()
+			bottle.top_radius = 0.04
+			bottle.bottom_radius = 0.08
+			bottle.height = 0.32
+			mesh = bottle
+		"cloth":
+			var rag := BoxMesh.new()
+			rag.size = Vector3(0.35, 0.04, 0.3)
+			mesh = rag
 		"shells":
 			var sb := BoxMesh.new()
 			sb.size = Vector3(0.22, 0.12, 0.14)

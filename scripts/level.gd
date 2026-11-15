@@ -307,6 +307,12 @@ func _build_camp() -> void:
 	PropLibrary.spawn(props, "barrel", Vector3(-2.7, 0, 7.2), 0.95)
 
 
+const CAMPFIRE_POS := Vector3(3, 0, 3)
+
+func campfire_position() -> Vector3:
+	return CAMPFIRE_POS
+
+
 func _add_searchable(parent: Node3D, local_pos: Vector3, table: String, label: String, reach: float) -> void:
 	var s := Searchable.new()
 	s.table = table
