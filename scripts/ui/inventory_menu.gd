@@ -34,7 +34,7 @@ func close() -> void:
 
 
 func _unhandled_input(event: InputEvent) -> void:
-	if event.is_action_pressed("inventory") or event.is_action_pressed("pause") or event.is_action_pressed("ui_cancel"):
+	if event.is_action_pressed("inventory") or event.is_action_pressed("pad_menu") or event.is_action_pressed("pause") or event.is_action_pressed("ui_cancel"):
 		get_viewport().set_input_as_handled()
 		close()
 

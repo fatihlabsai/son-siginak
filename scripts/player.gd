@@ -153,7 +153,8 @@ func _physics_process(delta: float) -> void:
 	_update_survival(delta)
 	var ui_open := Game.ui_open
 	var busy := searching != null or repairing != null
-	is_aiming = Input.is_action_pressed("aim") and not ui_open and not busy and not build.active
+	var stick_aim := Game.using_pad and Game.right_stick() != Vector2.ZERO
+	is_aiming = (Input.is_action_pressed("aim") or stick_aim) and not ui_open and not busy and not build.active
 
 	var input := Vector2.ZERO
 	if not ui_open and not busy:
@@ -297,6 +298,14 @@ func _camera_relative(input: Vector2) -> Vector3:
 
 
 func _update_aim_point() -> void:
+	# Oyun kolu: sağ çubuk yönünde 7 m ileri; çubuk boştaysa bakılan yön
+	if Game.using_pad:
+		var rs := Game.right_stick()
+		if rs != Vector2.ZERO:
+			aim_point = global_position + _camera_relative(rs.normalized()) * 7.0
+		else:
+			aim_point = global_position + get_facing() * 2.5
+		return
 	var cam := get_viewport().get_camera_3d()
 	if cam == null:
 		return

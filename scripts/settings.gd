@@ -5,6 +5,8 @@ signal changed
 
 const PATH := "user://settings.cfg"
 const QUALITY_NAMES := ["Düşük", "Orta", "Yüksek"]
+const FPS_NAMES := ["Sınırsız", "30", "60", "120", "144"]
+const FPS_VALUES := [0, 30, 60, 120, 144]
 const DIFFICULTY_NAMES := ["Kolay", "Normal", "Zor"]
 ## Zorluk çarpanları: [kolay, normal, zor]
 const DIFF := {
@@ -17,6 +19,8 @@ const DIFF := {
 var fullscreen := false
 var vsync := true
 var quality := 2
+var render_scale := 1.0   # 0.5..1.0, 1'in altında FSR ile ölçeklenir
+var fps_limit := 0        # FPS_VALUES içindeki sıra
 var master_volume := 0.8
 var music_volume := 0.7
 var sfx_volume := 0.9
@@ -39,6 +43,8 @@ func reset_defaults() -> void:
 	fullscreen = false
 	vsync = true
 	quality = 2
+	render_scale = 1.0
+	fps_limit = 0
 	master_volume = 0.8
 	music_volume = 0.7
 	sfx_volume = 0.9
@@ -55,6 +61,8 @@ func load_settings() -> void:
 	fullscreen = cfg.get_value("display", "fullscreen", fullscreen)
 	vsync = cfg.get_value("display", "vsync", vsync)
 	quality = cfg.get_value("display", "quality", quality)
+	render_scale = cfg.get_value("display", "render_scale", render_scale)
+	fps_limit = cfg.get_value("display", "fps_limit", fps_limit)
 	master_volume = cfg.get_value("audio", "master", master_volume)
 	music_volume = cfg.get_value("audio", "music", music_volume)
 	sfx_volume = cfg.get_value("audio", "sfx", sfx_volume)
@@ -69,6 +77,8 @@ func save_settings() -> void:
 	cfg.set_value("display", "fullscreen", fullscreen)
 	cfg.set_value("display", "vsync", vsync)
 	cfg.set_value("display", "quality", quality)
+	cfg.set_value("display", "render_scale", render_scale)
+	cfg.set_value("display", "fps_limit", fps_limit)
 	cfg.set_value("audio", "master", master_volume)
 	cfg.set_value("audio", "music", music_volume)
 	cfg.set_value("audio", "sfx", sfx_volume)
@@ -93,6 +103,11 @@ func apply() -> void:
 	_set_bus("Ambience", sfx_volume)
 	var msaa := [Viewport.MSAA_DISABLED, Viewport.MSAA_2X, Viewport.MSAA_4X]
 	get_viewport().msaa_3d = msaa[clampi(quality, 0, 2)]
+	var vp := get_viewport()
+	render_scale = clampf(render_scale, 0.5, 1.0)
+	vp.scaling_3d_mode = Viewport.SCALING_3D_MODE_FSR if render_scale < 0.99 else Viewport.SCALING_3D_MODE_BILINEAR
+	vp.scaling_3d_scale = render_scale
+	Engine.max_fps = FPS_VALUES[clampi(fps_limit, 0, FPS_VALUES.size() - 1)]
 	changed.emit()
 
 

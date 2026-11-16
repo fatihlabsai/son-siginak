@@ -38,6 +38,19 @@ Kayıtlar her bilgisayarda ayrıdır (`%APPDATA%\Godot\app_userdata\Son Sığın
 | Esc | Duraklat (Kaydet, Ayarlar, Ana menü) |
 | Esc / Space (iki kez) | Ara sahneyi geç |
 
+### Oyun kolu (Xbox düzeni)
+
+| Tuş | Eylem |
+|---|---|
+| Sol çubuk / Sağ çubuk | Yürü / nişan yönü |
+| RT / LT | Vur, ateş et / nişan al |
+| A / B / X / Y | Etkileşim / Fener / İnşa / Silah değiştir (inşada döndür) |
+| LB / RB | Koş / Fırlat |
+| L3 / R3 | Fırlatılacağı değiştir / Harita |
+| Yön tuşları | Ye / İç / İlk yardım / Bandaj |
+| Back (dokun / basılı tut) | Envanter / Üretim |
+| Start | Duraklat |
+
 ## Kayıt
 
 - Her şafakta (06:00) otomatik kayıt; duraklatma menüsünden elle de kaydedilir.

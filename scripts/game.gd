@@ -26,7 +26,18 @@ const MAX_DECALS := 60
 
 
 func _ready() -> void:
+	_migrate_legacy_save()
 	_setup_input()
+
+
+## Son girdi oyun kolundan mı geldi? (nişan ve ipuçları buna göre)
+var using_pad := false
+
+func _input(event: InputEvent) -> void:
+	if event is InputEventJoypadButton or (event is InputEventJoypadMotion and absf((event as InputEventJoypadMotion).axis_value) > 0.35):
+		using_pad = true
+	elif event is InputEventMouseMotion or event is InputEventKey or event is InputEventMouseButton:
+		using_pad = false
 
 
 func _exit_tree() -> void:
@@ -57,20 +68,95 @@ func _process(delta: float) -> void:
 # aranmış yerler, zombiler, zaman.
 # ------------------------------------------------------------------
 
-const SAVE_PATH := "user://savegame.json"
+const LEGACY_SAVE_PATH := "user://savegame.json"
+const SLOT_COUNT := 3
 const SAVE_VERSION := 1
+
+## Etkin kayıt yuvası (0..2). Yeni oyun ve Devam Et bunu ayarlar.
+var slot := 0
+
+
+func slot_path(i: int) -> String:
+	return "user://save_%d.json" % (i + 1)
+
+
+func has_save_slot(i: int) -> bool:
+	return FileAccess.file_exists(slot_path(i))
+
+
+func any_save() -> bool:
+	for i in SLOT_COUNT:
+		if has_save_slot(i):
+			return true
+	return false
+
+
+## En son değişen kaydın yuvası; kayıt yoksa -1.
+func latest_slot() -> int:
+	var best := -1
+	var best_t := -1
+	for i in SLOT_COUNT:
+		if has_save_slot(i):
+			var t := FileAccess.get_modified_time(slot_path(i))
+			if t > best_t:
+				best_t = t
+				best = i
+	return best
+
+
+## Yeni oyun için yuva: önce boş olan, hepsi doluysa en eski.
+func free_or_oldest_slot() -> int:
+	var oldest := 0
+	var oldest_t := 1 << 62
+	for i in SLOT_COUNT:
+		if not has_save_slot(i):
+			return i
+		var t := FileAccess.get_modified_time(slot_path(i))
+		if t < oldest_t:
+			oldest_t = t
+			oldest = i
+	return oldest
+
+
+func read_save_slot(i: int) -> Dictionary:
+	if not has_save_slot(i):
+		return {}
+	var f := FileAccess.open(slot_path(i), FileAccess.READ)
+	if f == null:
+		return {}
+	var data = JSON.parse_string(f.get_as_text())
+	return data if data is Dictionary else {}
+
+
+func summary_of(d: Dictionary) -> String:
+	if d.is_empty():
+		return ""
+	var h := int(d.get("hour", 0.0))
+	var m := int((float(d.get("hour", 0.0)) - h) * 60.0)
+	var diff: int = clampi(int(d.get("difficulty", 1)), 0, 2)
+	return "Gün %d  ·  %02d:%02d  ·  %s" % [int(d.get("day", 1)), h, m, Settings.DIFFICULTY_NAMES[diff]]
+
+
+func delete_slot(i: int) -> void:
+	if has_save_slot(i):
+		DirAccess.remove_absolute(ProjectSettings.globalize_path(slot_path(i)))
+
+
+## Eski tek dosyalık kaydı 1. yuvaya taşı.
+func _migrate_legacy_save() -> void:
+	if FileAccess.file_exists(LEGACY_SAVE_PATH) and not has_save_slot(0):
+		DirAccess.rename_absolute(ProjectSettings.globalize_path(LEGACY_SAVE_PATH), ProjectSettings.globalize_path(slot_path(0)))
 
 var pending_load: Dictionary = {}     # ana menüden "Devam Et" ile gelen kayıt
 var loaded_from_save := false
 
 
 func has_save() -> bool:
-	return FileAccess.file_exists(SAVE_PATH)
+	return has_save_slot(slot)
 
 
 func delete_save() -> void:
-	if has_save():
-		DirAccess.remove_absolute(ProjectSettings.globalize_path(SAVE_PATH))
+	delete_slot(slot)
 
 
 func can_save() -> bool:
@@ -78,24 +164,12 @@ func can_save() -> bool:
 
 
 func read_save() -> Dictionary:
-	if not has_save():
-		return {}
-	var f := FileAccess.open(SAVE_PATH, FileAccess.READ)
-	if f == null:
-		return {}
-	var data = JSON.parse_string(f.get_as_text())
-	return data if data is Dictionary else {}
+	return read_save_slot(slot)
 
 
 ## Kayıt özeti (ana menüde göstermek için): "Gün 3 · 14:20 · Normal"
 func save_summary() -> String:
-	var d := read_save()
-	if d.is_empty():
-		return ""
-	var h := int(d.get("hour", 0.0))
-	var m := int((float(d.get("hour", 0.0)) - h) * 60.0)
-	var diff: int = clampi(int(d.get("difficulty", 1)), 0, 2)
-	return "Gün %d  ·  %02d:%02d  ·  %s" % [int(d.get("day", 1)), h, m, Settings.DIFFICULTY_NAMES[diff]]
+	return summary_of(read_save())
 
 
 func save_game() -> bool:
@@ -131,7 +205,7 @@ func save_game() -> bool:
 	var spawner := get_tree().current_scene.get_node_or_null("ZombieSpawner")
 	if spawner:
 		d["last_horde_day"] = spawner.get("_last_horde_day")
-	var f := FileAccess.open(SAVE_PATH, FileAccess.WRITE)
+	var f := FileAccess.open(slot_path(slot), FileAccess.WRITE)
 	if f == null:
 		return false
 	f.store_string(JSON.stringify(d, "  "))
@@ -267,6 +341,60 @@ func _setup_input() -> void:
 	_bind_keys("attack", [KEY_SPACE])
 	_bind_mouse("attack", MOUSE_BUTTON_LEFT)
 	_bind_mouse("aim", MOUSE_BUTTON_RIGHT)
+	_setup_pad()
+
+
+## Oyun kolu (Xbox düzeni; PlayStation'da aynı yerdeki tuşlar):
+##  Sol çubuk yürü · Sağ çubuk nişan yönü · RT vur/ateş · LT nişan al
+##  A etkileşim · B fener · X inşa · Y silah değiştir (inşada döndür)
+##  LB koş · RB fırlat · L3 fırlatılacağı değiştir · R3 harita
+##  Back/View: dokun envanter, basılı tut üretim · Start duraklat · Yön tuşları 1-2-3-4
+func _setup_pad() -> void:
+	_bind_axis("move_left", JOY_AXIS_LEFT_X, -1.0)
+	_bind_axis("move_right", JOY_AXIS_LEFT_X, 1.0)
+	_bind_axis("move_up", JOY_AXIS_LEFT_Y, -1.0)
+	_bind_axis("move_down", JOY_AXIS_LEFT_Y, 1.0)
+	_bind_axis("attack", JOY_AXIS_TRIGGER_RIGHT, 1.0)
+	_bind_axis("aim", JOY_AXIS_TRIGGER_LEFT, 1.0)
+	_bind_pad("interact", JOY_BUTTON_A)
+	_bind_pad("flashlight", JOY_BUTTON_B)
+	_bind_pad("build", JOY_BUTTON_X)
+	_bind_pad("switch_weapon", JOY_BUTTON_Y)
+	_bind_pad("rotate_build", JOY_BUTTON_Y)
+	_bind_pad("sprint", JOY_BUTTON_LEFT_SHOULDER)
+	_bind_pad("throw", JOY_BUTTON_RIGHT_SHOULDER)
+	_bind_pad("switch_throwable", JOY_BUTTON_LEFT_STICK)
+	_bind_pad("map", JOY_BUTTON_RIGHT_STICK)
+	_bind_pad("pad_menu", JOY_BUTTON_BACK)
+	_bind_pad("pause", JOY_BUTTON_START)
+	_bind_pad("restart", JOY_BUTTON_START)
+	_bind_pad("use_food", JOY_BUTTON_DPAD_UP)
+	_bind_pad("use_water", JOY_BUTTON_DPAD_RIGHT)
+	_bind_pad("use_medkit", JOY_BUTTON_DPAD_DOWN)
+	_bind_pad("use_bandage", JOY_BUTTON_DPAD_LEFT)
+
+
+func _bind_pad(action: String, button: JoyButton) -> void:
+	if not InputMap.has_action(action):
+		InputMap.add_action(action)
+	var ev := InputEventJoypadButton.new()
+	ev.button_index = button
+	InputMap.action_add_event(action, ev)
+
+
+func _bind_axis(action: String, axis: JoyAxis, value: float) -> void:
+	if not InputMap.has_action(action):
+		InputMap.add_action(action)
+	var ev := InputEventJoypadMotion.new()
+	ev.axis = axis
+	ev.axis_value = value
+	InputMap.action_add_event(action, ev)
+
+
+## Sağ çubuğun yönü (ölü bölge dışında), yoksa sıfır.
+func right_stick() -> Vector2:
+	var v := Vector2(Input.get_joy_axis(0, JOY_AXIS_RIGHT_X), Input.get_joy_axis(0, JOY_AXIS_RIGHT_Y))
+	return v if v.length() > 0.3 else Vector2.ZERO
 
 
 func _bind_keys(action: String, keys: Array) -> void:

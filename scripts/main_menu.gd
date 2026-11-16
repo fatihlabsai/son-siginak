@@ -37,6 +37,7 @@ var _tip: Label
 var _tip_index := 0
 var _fade: ColorRect
 var _busy := false
+var _slots_box: VBoxContainer
 var _updater: Updater
 var _upd_panel: PanelContainer
 var _upd_label: Label
@@ -360,7 +361,9 @@ func _build_ui() -> void:
 
 	# Menü kutuları
 	_main_box = _menu_column()
-	if Game.has_save():
+	var latest := Game.latest_slot()
+	if latest >= 0:
+		Game.slot = latest
 		_add_btn(_main_box, "DEVAM ET", _continue_game)
 		var sub := UITheme.label(Game.save_summary(), 15, UITheme.TEXT_DIM)
 		var sm := MarginContainer.new()
@@ -369,14 +372,19 @@ func _build_ui() -> void:
 		sm.add_child(sub)
 		_main_box.add_child(sm)
 	_add_btn(_main_box, "YENİ OYUN", _show.bind("diff"))
+	if latest >= 0:
+		_add_btn(_main_box, "KAYITLAR", _show.bind("slots"))
 	_add_btn(_main_box, "AYARLAR", _open_settings)
 	_add_btn(_main_box, "KONTROLLER", _show.bind("controls"))
 	_add_btn(_main_box, "ÇIKIŞ", _quit)
 
 	_diff_box = _menu_column()
 	_diff_box.add_child(UITheme.label("ZORLUK SEÇ", 16, UITheme.ACCENT.lightened(0.25), UITheme.spaced_font()))
-	if Game.has_save():
-		_diff_box.add_child(UITheme.label("Dikkat: yeni oyun mevcut kaydın üzerine yazılır.", 14, Color(0.95, 0.6, 0.45)))
+	var new_slot := Game.free_or_oldest_slot()
+	if Game.has_save_slot(new_slot):
+		_diff_box.add_child(UITheme.label("Dikkat: bütün yuvalar dolu, en eski kayıt (Yuva %d) silinecek." % (new_slot + 1), 14, Color(0.95, 0.6, 0.45)))
+	else:
+		_diff_box.add_child(UITheme.label("Yuva %d'e kaydedilecek." % (new_slot + 1), 14, UITheme.TEXT_DIM))
 	var descs := [
 		"Daha az zombi, bol erzak, hafif ısırıklar.",
 		"Dengeli bir hayatta kalma deneyimi.",
@@ -394,6 +402,8 @@ func _build_ui() -> void:
 	_add_btn(_diff_box, "GERİ", _show.bind("main"), 20)
 
 	_controls_box = _build_controls()
+	_slots_box = _menu_column()
+	_build_slots()
 
 	# Alt bilgiler
 	var ver := UITheme.label("v%s  ·  Prototip" % Updater.current_version(), 14, Color(1, 1, 1, 0.35))
@@ -549,7 +559,7 @@ func _build_controls() -> Control:
 
 
 func _show(which: String) -> void:
-	var boxes := {"main": _main_box, "diff": _diff_box, "controls": _controls_box}
+	var boxes := {"main": _main_box, "diff": _diff_box, "controls": _controls_box, "slots": _slots_box}
 	for key in boxes:
 		var box: Control = boxes[key]
 		box.visible = key == which
@@ -566,7 +576,7 @@ func _unhandled_input(event: InputEvent) -> void:
 
 
 func _open_settings() -> void:
-	for box in [_main_box, _diff_box, _controls_box]:
+	for box in [_main_box, _diff_box, _controls_box, _slots_box]:
 		(box as Control).visible = false
 	_settings = SettingsMenu.new()
 	_ui.add_child(_settings)
@@ -581,6 +591,7 @@ func _start_game(difficulty: int) -> void:
 	Settings.difficulty = difficulty
 	Settings.save_settings()
 	Game.reset_run()
+	Game.slot = Game.free_or_oldest_slot()
 	Game.delete_save()
 	_fade.mouse_filter = Control.MOUSE_FILTER_STOP
 	var tw := create_tween()
@@ -600,6 +611,57 @@ func _continue_game() -> void:
 	tw.tween_property(_fade, "color:a", 1.0, 0.7)
 	await tw.finished
 	get_tree().change_scene_to_file(GAME_SCENE)
+
+
+## Kayıt yuvaları: her yuva için özet, YÜKLE ve SİL.
+func _build_slots() -> void:
+	for c in _slots_box.get_children():
+		c.queue_free()
+	_slots_box.add_child(UITheme.label("KAYITLAR", 16, UITheme.ACCENT.lightened(0.25), UITheme.spaced_font()))
+	for i in Game.SLOT_COUNT:
+		var row := HBoxContainer.new()
+		row.add_theme_constant_override("separation", 10)
+		_slots_box.add_child(row)
+		var info := VBoxContainer.new()
+		info.custom_minimum_size.x = 250
+		info.add_theme_constant_override("separation", -2)
+		row.add_child(info)
+		info.add_child(UITheme.label("YUVA %d" % (i + 1), 22, UITheme.TEXT, UITheme.title_font()))
+		var has := Game.has_save_slot(i)
+		info.add_child(UITheme.label(Game.summary_of(Game.read_save_slot(i)) if has else "Boş", 15, UITheme.TEXT_DIM))
+		if has:
+			var load_b := UITheme.menu_button("YÜKLE", 18)
+			load_b.custom_minimum_size = Vector2(0, 0)
+			load_b.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+			load_b.pressed.connect(_load_slot.bind(i))
+			row.add_child(load_b)
+			var del_b := UITheme.menu_button("SİL", 18)
+			del_b.custom_minimum_size = Vector2(0, 0)
+			del_b.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+			del_b.pressed.connect(_delete_slot.bind(i, del_b))
+			row.add_child(del_b)
+	var sp := Control.new()
+	sp.custom_minimum_size.y = 8
+	_slots_box.add_child(sp)
+	_add_btn(_slots_box, "GERİ", _show.bind("main"), 20)
+
+
+func _load_slot(i: int) -> void:
+	Game.slot = i
+	_continue_game()
+
+
+var _confirm_delete := -1
+
+func _delete_slot(i: int, b: Button) -> void:
+	# İlk basış onay ister, ikincisi siler
+	if _confirm_delete != i:
+		_confirm_delete = i
+		b.text = "EMİN MİSİN?"
+		return
+	_confirm_delete = -1
+	Game.delete_slot(i)
+	get_tree().reload_current_scene()
 
 
 func _quit() -> void:

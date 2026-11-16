@@ -95,6 +95,12 @@ func _ready() -> void:
 
 func _process(delta: float) -> void:
 	_update_objective(delta)
+	if _pad_menu_held > 0.0:
+		_pad_menu_held += delta
+		if _pad_menu_held > 0.45:
+			_pad_menu_held = 0.0
+			if not is_instance_valid(_crafting) and not is_instance_valid(_inventory):
+				_open_crafting()
 	var p := Game.player
 	if is_instance_valid(p):
 		_stats["health"].set_value(p.health / p.max_health)
@@ -221,7 +227,14 @@ func _unhandled_input(event: InputEvent) -> void:
 	elif event.is_action_pressed("map") and not _game_over and not get_tree().paused:
 		_toggle_map()
 		get_viewport().set_input_as_handled()
-	elif _big_map.visible and event.is_action_pressed("pause"):
+	elif event.is_action_pressed("pad_menu") and not _game_over and not get_tree().paused:
+		_pad_menu_held = 0.0001
+		get_viewport().set_input_as_handled()
+	elif event.is_action_released("pad_menu") and _pad_menu_held > 0.0:
+		_pad_menu_held = 0.0
+		_open_inventory()
+		get_viewport().set_input_as_handled()
+	elif _big_map.visible and (event.is_action_pressed("pause") or event.is_action_pressed("ui_cancel")):
 		_toggle_map()
 		get_viewport().set_input_as_handled()
 	elif event.is_action_pressed("craft") and not _game_over and not get_tree().paused:
@@ -463,6 +476,7 @@ func _build_objective() -> void:
 
 
 var _minimap: MapView
+var _pad_menu_held := 0.0
 var _big_map: Control
 
 

@@ -41,6 +41,8 @@ func _build() -> void:
 	_first_focus = _check(vb, "Tam ekran", "fullscreen")
 	_check(vb, "Dikey senkronizasyon (V-Sync)", "vsync")
 	_option(vb, "Grafik kalitesi", "quality", Settings.QUALITY_NAMES)
+	_slider(vb, "Çözünürlük ölçeği", "render_scale", 50, 100, 0.01, "%d%%")
+	_option(vb, "Kare hızı sınırı", "fps_limit", Settings.FPS_NAMES)
 
 	_section(vb, "SES")
 	_slider(vb, "Ana ses", "master_volume", 0, 100, 0.01, "%d%%")
