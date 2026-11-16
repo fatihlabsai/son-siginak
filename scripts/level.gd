@@ -139,6 +139,7 @@ func _apply_save(d: Dictionary) -> void:
 
 
 func _process(delta: float) -> void:
+	_process_story()
 	_t += delta
 	if _campfire_light:
 		_campfire_light.light_energy = 2.4 + sin(_t * 13.0) * 0.25 + sin(_t * 7.3) * 0.2 + randf() * 0.3
@@ -221,6 +222,7 @@ func _build_town() -> void:
 	_build_trees(50)
 	_build_clutter(35)
 	_build_yard()
+	_build_story_sites()
 	_build_grass()
 
 
@@ -320,7 +322,7 @@ func campfire_position() -> Vector3:
 	return CAMPFIRE_POS
 
 
-func _add_searchable(parent: Node3D, local_pos: Vector3, table: String, label: String, reach: float) -> void:
+func _add_searchable(parent: Node3D, local_pos: Vector3, table: String, label: String, reach: float) -> Searchable:
 	var s := Searchable.new()
 	s.table = table
 	s.label = label
@@ -328,6 +330,7 @@ func _add_searchable(parent: Node3D, local_pos: Vector3, table: String, label: S
 	s.position = local_pos
 	parent.add_child(s)
 	_searchables.append(s)
+	return s
 
 
 ## Kamp ateşinden yükselen kıvılcımlar
@@ -383,7 +386,8 @@ func _build_buildings(count: int) -> void:
 			# Ön kapı (modelin +Z yüzü) önünde aranabilir nokta
 			var a := PropLibrary.aabb(kind)
 			var labels := {"farmhouse": "Evi ara", "house": "Evi ara", "barn": "Ahırı ara", "store": "Marketi ara"}
-			_add_searchable(building, Vector3(a.get_center().x * s, 0, a.end.z * s + 0.9), "house", labels.get(kind, "Ara"), 2.2)
+			var srch := _add_searchable(building, Vector3(a.get_center().x * s, 0, a.end.z * s + 0.9), "house", labels.get(kind, "Ara"), 2.2)
+			_buildings_info.append({"kind": kind, "node": building, "center": Vector3(c.x, 0, c.y), "yaw": yaw, "search": srch})
 		else:
 			var h := _rng.randf_range(3.0, 5.5)
 			_add_box(Vector3(c.x, h / 2.0, c.y), Vector3(fp.x, h, fp.y), Color(0.42, 0.4, 0.37))
@@ -425,6 +429,7 @@ func _build_trees(count: int) -> void:
 		var tree := PropLibrary.spawn(props, kind, Vector3(p.x, 0, p.y), s, _rng.randf() * TAU, "trunk")
 		if tree:
 			_fader.add(tree, PropLibrary.aabb(kind), s, 0.75)
+			_tree_items.append([r, tree])
 			continue
 		var trunk_h := _rng.randf_range(2.5, 4.0)
 		var cyl := CylinderMesh.new()
@@ -435,6 +440,7 @@ func _build_trees(count: int) -> void:
 		shape.radius = 0.3
 		shape.height = trunk_h
 		var body := _add_static(Vector3(p.x, trunk_h / 2.0, p.y), cyl, shape, Color(0.25, 0.18, 0.12))
+		_tree_items.append([r, body])
 		if _rng.randf() < 0.3:
 			continue  # kuru ağaç
 		var cone := CylinderMesh.new()
@@ -808,7 +814,7 @@ func _build_shelter(c: Vector3) -> void:
 	shelter_door.position = Vector3(hx - 0.35, 0, 0.6)
 	_shelter_node.add_child(shelter_door)
 	_searchables.append(shelter_door)
-	shelter_door.opened.connect(_open_shelter_door)
+	shelter_door.opened.connect(func(_r: bool): _open_shelter_door())
 	_fader.add(shell, AABB(Vector3(-hx - 0.5, 0, -hz - 0.5), Vector3(hx * 2 + 1.0, h + 0.3, hz * 2 + 1.0)), 1.0)
 
 
@@ -867,6 +873,191 @@ func _setup_new_run() -> void:
 	# Sahada birkaç işe yarar şey
 	spawn_pickup("wood", shelter_center + Vector3(4.0, 0, -4.4), false, 2)
 	spawn_pickup("water", shelter_center + Vector3(7.8, 0, -1.2), false, 1)
+	for e in _story_pickups:
+		spawn_pickup(e[0], e[1], false, e[2])
 	if Game.play_shelter_intro:
 		var intro := ShelterIntro.new()
 		get_tree().current_scene.add_child(intro)
+
+
+# ------------------------------------------------------------------
+# Hikâye: Bölüm 1 — Mercer evi ve Kuzey Lisesi (tahliye noktası)
+# ------------------------------------------------------------------
+
+signal story_event(id: String)
+
+var house_center := Vector3.INF
+var school_center := Vector3.INF
+var story_house: Searchable
+var story_school: Searchable
+var _school_horde_done := false
+var _story_pickups: Array = []
+var _tree_items: Array = []   # [Rect2, Node3D]
+
+
+## Ağaçlar dışındaki ayrılmış alanlarla çakışıyor mu? (yol, bina, kamp, saha, eşyalar)
+func _overlaps_hard(r: Rect2) -> bool:
+	for o in _occupied:
+		if not o.intersects(r):
+			continue
+		var is_tree := false
+		for t in _tree_items:
+			if t[0] == o:
+				is_tree = true
+				break
+		if not is_tree:
+			return true
+	return false
+
+
+## Alanın içindeki ağaçları kaldır.
+func _clear_trees(r: Rect2) -> void:
+	for t in _tree_items:
+		if (t[0] as Rect2).intersects(r) and is_instance_valid(t[1]):
+			var n := t[1] as Node
+			n.get_parent().remove_child(n)
+			n.free()   # navmesh pişirilmeden önce gitsin
+
+
+var _buildings_info: Array = []
+
+
+## Kasabadaki binalardan biri Mercer evi, biri Kuzey Lisesi (tahliye noktası) olur.
+## Harita ve kayıtlardaki sıra değişmesin diye yeni bina eklenmez.
+func _build_story_sites() -> void:
+	var homes: Array = []
+	var others: Array = []
+	for b in _buildings_info:
+		if not is_instance_valid(b.node):
+			continue
+		if b.kind == "house" or b.kind == "farmhouse":
+			homes.append(b)
+		else:
+			others.append(b)
+	if homes.is_empty():
+		return
+	# Ev: sığınaktan en uzaktaki evlerden biri (yol boyunca bir yolculuk olsun)
+	homes.sort_custom(func(x, y): return (x.center as Vector3).distance_to(shelter_center) > (y.center as Vector3).distance_to(shelter_center))
+	var home: Dictionary = homes[0]
+	_make_mercer_house(home)
+	# Okul: tercihen bir market/ahır, evden uzak olan
+	var pool: Array = others if not others.is_empty() else homes.slice(1)
+	if pool.is_empty():
+		return
+	# Hem sığınaktan hem evden uzak olan (en kısa mesafesi en büyük) bina
+	var score := func(b: Dictionary) -> float:
+		var c: Vector3 = b.center
+		return minf(c.distance_to(shelter_center), c.distance_to(home.center))
+	pool.sort_custom(func(x, y): return score.call(x) > score.call(y))
+	_make_school(pool[0])
+
+
+func _make_mercer_house(b: Dictionary) -> void:
+	house_center = b.center
+	story_house = b.search
+	story_house.table = "mercer_house"
+	story_house.label = "Evine gir"
+	story_house.opened.connect(func(restored: bool): if not restored: story_event.emit("house"))
+	var door := story_house.global_position
+	var yaw: float = b.yaw
+	var side := Vector3(cos(yaw), 0, -sin(yaw))
+	var front := Vector3(sin(yaw), 0, cos(yaw))
+	# Posta kutusu ve isim
+	var mb := door + front * 2.2 + side * 2.2
+	_add_box(mb + Vector3.UP * 0.55, Vector3(0.1, 1.1, 0.1), Color(0.3, 0.28, 0.25))
+	_add_box(mb + Vector3.UP * 1.15, Vector3(0.3, 0.26, 0.3), Color(0.15, 0.25, 0.45))
+	var name_l := Label3D.new()
+	name_l.text = "MERCER"
+	name_l.font_size = 64
+	name_l.outline_size = 8
+	name_l.pixel_size = 0.005
+	name_l.billboard = BaseMaterial3D.BILLBOARD_ENABLED
+	name_l.position = mb + Vector3.UP * 1.7
+	props.add_child(name_l)
+	# Kapının önüne düşmüş bir çocuk çantası, ışığı açık kalmış bir lamba
+	_add_box(door + front * 1.0 - side * 0.8 + Vector3.UP * 0.12, Vector3(0.35, 0.24, 0.2), Color(0.85, 0.6, 0.15))
+	var lamp := OmniLight3D.new()
+	lamp.light_color = Color(1.0, 0.8, 0.55)
+	lamp.light_energy = 1.2
+	lamp.omni_range = 4.0
+	lamp.position = door + Vector3.UP * 2.2
+	props.add_child(lamp)
+	_story_pickups.append(["food", door + front * 2.0 - side * 2.5, 1])
+
+
+func _make_school(b: Dictionary) -> void:
+	school_center = b.center
+	var srch: Searchable = b.search
+	srch.label = "Okulu ara"
+	var door := srch.global_position
+	var yaw: float = b.yaw
+	var side := Vector3(cos(yaw), 0, -sin(yaw))
+	var front := Vector3(sin(yaw), 0, cos(yaw))
+	var sign := Label3D.new()
+	sign.text = "KUZEY LİSESİ\nTAHLİYE NOKTASI"
+	sign.font_size = 80
+	sign.outline_size = 12
+	sign.pixel_size = 0.007
+	sign.modulate = Color(1.0, 0.95, 0.85)
+	sign.billboard = BaseMaterial3D.BILLBOARD_ENABLED
+	sign.position = door + Vector3.UP * 4.2
+	props.add_child(sign)
+	# Kum torbaları ve bariyerler (giriş açık)
+	var sand := Color(0.5, 0.46, 0.34)
+	var horiz := absf(front.x) < 0.5
+	for k in [-1.0, 1.0]:
+		_add_box(door + front * 1.8 + side * k * 2.6 + Vector3.UP * 0.4, Vector3(2.0, 0.8, 0.6) if horiz else Vector3(0.6, 0.8, 2.0), sand)
+		CutsceneActor.spawn_prop(props, "res://assets/models/intro/barrier.glb", 1.4, door + front * 2.6 + side * k * 1.2, yaw + k * 0.35)
+	# Kayıt masası ve tahtalı kâğıt
+	var table := door + side * 2.4 + front * 0.2
+	_add_box(table + Vector3.UP * 0.38, Vector3(1.4, 0.06, 0.6) if horiz else Vector3(0.6, 0.06, 1.4), Color(0.45, 0.42, 0.38))
+	var paper := MeshInstance3D.new()
+	paper.mesh = _box_mesh(Vector3(0.22, 0.01, 0.3))
+	paper.material_override = _mat(Color(0.95, 0.94, 0.9))
+	paper.position = table + Vector3.UP * 0.42
+	paper.rotation.y = yaw + 0.3
+	props.add_child(paper)
+	story_school = Searchable.new()
+	story_school.table = "evac_list"
+	story_school.label = "Tahliye kaydını oku"
+	story_school.reach = 1.8
+	story_school.silent = true
+	props.add_child(story_school)
+	story_school.global_position = table + front * 0.9
+	_searchables.append(story_school)
+	story_school.opened.connect(func(restored: bool): if not restored: story_event.emit("school"))
+	_story_pickups.append(["medkit", door + front * 3.5 + side * 3.5, 1])
+	_story_pickups.append(["pistol_ammo", door + front * 3.5 - side * 3.5, 10])
+
+
+func story_house_searched() -> bool:
+	return is_instance_valid(story_house) and story_house.searched
+
+
+func story_school_searched() -> bool:
+	return is_instance_valid(story_school) and story_school.searched
+
+
+## Okula ilk yaklaşmada bir sürü belirir (sadece bir kez; kayıtla ilgilenmez).
+func _process_story() -> void:
+	if _school_horde_done or school_center == Vector3.INF or story_school_searched() or not story_house_searched():
+		return
+	var p := Game.player
+	if not is_instance_valid(p) or Game.cutscene_active:
+		return
+	if Vector2(p.global_position.x - school_center.x, p.global_position.z - school_center.z).length() > 30.0:
+		return
+	_school_horde_done = true
+	var spawner := get_tree().current_scene.get_node_or_null("ZombieSpawner")
+	if spawner == null:
+		return
+	var n := int(round(6 * Settings.diff("zombies")))
+	for i in n:
+		var ang := TAU * i / n
+		var pos := school_center + Vector3(cos(ang), 0, sin(ang)) * _rng.randf_range(5.0, 9.0)
+		var z = spawner.call("_spawn_at", pos)
+		if z and z.has_method("alert_to"):
+			z.alert_to(p.global_position)
+	Audio.play_2d("horde", -6.0)
+	if is_instance_valid(p):
+		p.message.emit("Okulun çevresi zombi kaynıyor!")

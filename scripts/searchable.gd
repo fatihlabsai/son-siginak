@@ -10,7 +10,7 @@ extends Node3D
 ## true: açılınca "Hiçbir şey bulamadın" demez (kapı gibi)
 @export var silent := false
 
-signal opened
+signal opened(restored: bool)
 
 var searched := false
 var search_time := 2.0
@@ -32,7 +32,7 @@ func prompt_text() -> String:
 func open() -> Array:
 	searched = true
 	remove_from_group("searchables")
-	opened.emit()
+	opened.emit(false)
 	var rng := RandomNumberGenerator.new()
 	rng.randomize()
 	return Items.roll(table, rng, Settings.diff("loot"))
@@ -42,4 +42,4 @@ func open() -> Array:
 func restore_searched() -> void:
 	searched = true
 	remove_from_group("searchables")
-	opened.emit()
+	opened.emit(true)

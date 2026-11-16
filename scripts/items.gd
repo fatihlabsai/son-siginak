@@ -64,6 +64,9 @@ const LOOT := {
 	"start_bag": {"rolls": [1, 1], "time": 1.4, "noise": 2.0, "items": [], "fixed": [
 		["knife", 1], ["pistol", 1], ["pistol_ammo", 8], ["food", 1], ["bandage", 1], ["nails", 6], ["cloth", 2]]},
 	"door": {"rolls": [1, 1], "time": 0.8, "noise": 3.0, "items": [], "fixed": []},
+	"mercer_house": {"rolls": [1, 1], "time": 3.0, "noise": 6.0, "items": [], "fixed": [
+		["food", 2], ["water", 2], ["bandage", 2], ["cloth", 2]]},
+	"evac_list": {"rolls": [1, 1], "time": 1.2, "noise": 2.0, "items": [], "fixed": []},
 	"zombie": {"rolls": [1, 1], "time": 0.0, "noise": 0.0, "items": [
 		["food", 15, 1, 1], ["water", 15, 1, 1], ["pistol_ammo", 20, 2, 5], ["shells", 6, 1, 2],
 		["medkit", 6, 1, 1], ["knife", 3, 1, 1], ["cloth", 10, 1, 1], ["", 40, 0, 0]]},

@@ -80,6 +80,10 @@ func _ready() -> void:
 	_build_menus()
 
 	var p := Game.player
+	if is_instance_valid(Game.level):
+		Game.level.story_event.connect(_on_story_event)
+		if Game.loaded_from_save or not Game.pending_load.is_empty():
+			_camp_reached = true
 	if p:
 		p.message.connect(show_message)
 		p.hurt.connect(_on_player_hurt)
@@ -531,12 +535,103 @@ func _toggle_map() -> void:
 	Audio.ui("click", -8.0)
 
 
+var _obj_key := ""
+var _chapter_done_shown := false
+
+## Görev anahtarı ve metni. Anahtar değişince satır yeniden belirir, mesafe sessizce güncellenir.
+func _objective() -> Array:
+	var lv := Game.level
+	var p := Game.player
+	if not is_instance_valid(lv) or not is_instance_valid(p) or not Game.nav_ready:
+		return ["", ""]
+	if not lv.shelter_bag_searched():
+		return ["bag", "Çantanı kontrol et (E basılı tut)"]
+	if not lv.shelter_door_open():
+		return ["door", "Sığınaktan çık"]
+	if not _camp_reached and p.global_position.distance_to(lv.campfire_position()) < 11.0:
+		_camp_reached = true
+		show_message("İpucu: Geceleri sürüler gelir. B ile kampın girişlerine barikat kur.", 6.0)
+	if not _camp_reached:
+		return ["camp", "Kavşaktaki kampa git. Yolda su bul."]
+	if not lv.story_house_searched() and lv.house_center != Vector3.INF:
+		return ["house", "Evine git: Nora ve June'u ara  (%d m)" % int(p.global_position.distance_to(lv.house_center))]
+	if not lv.story_school_searched() and lv.school_center != Vector3.INF:
+		return ["school", "Kuzey Lisesi'ne git: tahliye noktası  (%d m)" % int(p.global_position.distance_to(lv.school_center))]
+	return ["end", "Bölüm 1 tamamlandı. Kuzey Köprüsü: devamı yakında."]
+
+
+## Haritada işaretlenecek hikâye hedefi (yoksa INF).
+func story_target() -> Vector3:
+	var lv := Game.level
+	if not is_instance_valid(lv):
+		return Vector3.INF
+	match _obj_key:
+		"camp":
+			return lv.campfire_position()
+		"house":
+			return lv.house_center
+		"school":
+			return lv.school_center
+	return Vector3.INF
+
+
+func _on_story_event(id: String) -> void:
+	match id:
+		"house":
+			_show_note("", "Baba,\n\nSeni bekledik. Radyo, Kuzey Lisesi'nin tahliye noktası olduğunu söylüyor. Annemle oraya gidiyoruz. Askerler varmış.\n\nFotoğrafını yanıma aldım. Projeye koyacaktım ya.\n\nSütü unutma. Şaka şaka.\nLütfen gel.", "— June", true)
+			Audio.play_music("theme", 3.0, -12.0)
+		"school":
+			_show_note("TAHLİYE KAYDI  ·  KUZEY LİSESİ", "OTOBÜS 3  —  Varış: Kuzey Köprüsü kontrol noktası\n\n...\nMARSH, Evelyn  ·  64\nMERCER, Nora  ·  41  ·  yakını: Caleb (kayıp)\nMERCER, June  ·  14\nMILLER, Tom  ·  52\n...\n\nNot: Köprü kontrol noktası 6. günden beri yanıt vermiyor.", "", false)
+			_chapter_end_later()
+
+
+func _show_note(title: String, body: String, footer: String, handwritten: bool) -> void:
+	var n := NoteView.new().setup(title, body, footer, handwritten)
+	n.closed.connect(func(): Game.ui_open = false)
+	_root.add_child(n)
+	_root.move_child(_fade, -1)
+	Game.ui_open = true
+	Audio.ui("click", -6.0)
+
+
+func _chapter_end_later() -> void:
+	while is_instance_valid(get_tree()) and Game.ui_open:
+		await get_tree().create_timer(0.3).timeout
+	if _chapter_done_shown:
+		return
+	_chapter_done_shown = true
+	var banner := UITheme.label("BÖLÜM 1 TAMAMLANDI", 54, UITheme.TEXT, UITheme.title_font())
+	banner.set_anchors_and_offsets_preset(Control.PRESET_CENTER_TOP)
+	banner.offset_top = 150
+	banner.offset_left = -400
+	banner.offset_right = 400
+	banner.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_shadow(banner)
+	banner.modulate.a = 0.0
+	_root.add_child(banner)
+	var sub := UITheme.label("Aileni bulmak için Kuzey Köprüsü'ne gitmen gerek. Hikâye sonraki güncellemede devam edecek.", 18, UITheme.TEXT_DIM)
+	sub.set_anchors_and_offsets_preset(Control.PRESET_CENTER_TOP)
+	sub.offset_top = 222
+	sub.offset_left = -500
+	sub.offset_right = 500
+	sub.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	sub.modulate.a = 0.0
+	_root.add_child(sub)
+	var tw := create_tween()
+	tw.tween_property(banner, "modulate:a", 1.0, 1.0)
+	tw.parallel().tween_property(sub, "modulate:a", 1.0, 1.0)
+	tw.tween_interval(5.0)
+	tw.tween_property(banner, "modulate:a", 0.0, 1.5)
+	tw.parallel().tween_property(sub, "modulate:a", 0.0, 1.5)
+	tw.tween_callback(banner.queue_free)
+	tw.tween_callback(sub.queue_free)
+	Game.save_game()
+
+
 func _current_objective() -> String:
 	var lv := Game.level
 	var p := Game.player
 	if not is_instance_valid(lv) or not is_instance_valid(p) or not Game.nav_ready:
-		return ""
-	if get_tree().get_nodes_in_group("barricades").size() > 0:
 		return ""
 	if not lv.shelter_bag_searched():
 		return "Çantanı kontrol et (E basılı tut)"
@@ -554,9 +649,16 @@ func _update_objective(delta: float) -> void:
 	if _obj_timer > 0.0:
 		return
 	_obj_timer = 0.4
-	var t := _current_objective() if not Game.cutscene_active else ""
+	var o := _objective() if not Game.cutscene_active else ["", ""]
+	var key: String = o[0]
+	var t: String = o[1]
+	if key == _obj_key and t != _obj_text:
+		_obj_text = t
+		_obj_label.text = t
+		return
 	if t == _obj_text:
 		return
+	_obj_key = key
 	var was := _obj_text
 	_obj_text = t
 	var tw := create_tween()

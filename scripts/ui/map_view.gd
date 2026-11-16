@@ -82,6 +82,21 @@ func _draw() -> void:
 		if zv.distance_to(pp) > 40.0:
 			continue
 		draw_circle(_to_screen(zv), 3.0 if not full else 2.5, Color(0.85, 0.15, 0.12))
+	# Hikâye hedefi (mini haritada kenara sabitlenir)
+	var hud := get_tree().current_scene.get_node_or_null("HUD")
+	if hud and hud.has_method("story_target"):
+		var tg: Vector3 = hud.story_target()
+		if tg != Vector3.INF:
+			var tp := _to_screen(Vector2(tg.x, tg.z))
+			var r := Rect2(Vector2(10, 10), size - Vector2(20, 20))
+			if not full and not r.has_point(tp):
+				var c := size * 0.5
+				var d := tp - c
+				var k := minf(absf((size.x * 0.5 - 10) / maxf(absf(d.x), 0.01)), absf((size.y * 0.5 - 10) / maxf(absf(d.y), 0.01)))
+				tp = c + d * k
+			var pulse := 1.0 + 0.2 * sin(Time.get_ticks_msec() / 200.0)
+			draw_circle(tp, 7.0 * pulse, Color(1.0, 0.85, 0.2, 0.35))
+			_star(tp, 6.0, Color(1.0, 0.85, 0.2))
 	# Oyuncu oku
 	var face := p.get_facing()
 	var fd := Vector2(face.x, face.z)
@@ -93,8 +108,21 @@ func _draw() -> void:
 	if full:
 		_label(cp + Vector2(10, -10), "KAMP")
 		_label(_to_screen(Vector2(sc.x, sc.z)) + Vector2(10, -10), "SIĞINAK")
+		if lv.house_center != Vector3.INF:
+			_label(_to_screen(Vector2(lv.house_center.x, lv.house_center.z)) + Vector2(10, -10), "EV")
+		if lv.school_center != Vector3.INF:
+			_label(_to_screen(Vector2(lv.school_center.x, lv.school_center.z)) + Vector2(10, -10), "LİSE")
 	# Çerçeve
 	draw_rect(Rect2(Vector2.ZERO, size), Color(1, 1, 1, 0.18), false, 1.5)
+
+
+func _star(c: Vector2, r: float, col: Color) -> void:
+	var pts := PackedVector2Array()
+	for i in 10:
+		var rr := r if i % 2 == 0 else r * 0.45
+		var a := -PI / 2.0 + i * PI / 5.0
+		pts.append(c + Vector2(cos(a), sin(a)) * rr)
+	draw_colored_polygon(pts, col)
 
 
 func _closed(poly: PackedVector2Array) -> PackedVector2Array:
