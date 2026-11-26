@@ -348,9 +348,20 @@ func _build_ui() -> void:
 
 	# Başlık
 	var title_box := VBoxContainer.new()
-	title_box.position = Vector2(90, 80)
 	title_box.add_theme_constant_override("separation", 6)
-	_ui.add_child(title_box)
+	# Logo amblemi başlığın solunda
+	var head := HBoxContainer.new()
+	head.position = Vector2(64, 74)
+	head.add_theme_constant_override("separation", 22)
+	_ui.add_child(head)
+	var emblem := TextureRect.new()
+	emblem.texture = load("res://assets/ui/logo_emblem.png")
+	emblem.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	emblem.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	emblem.custom_minimum_size = Vector2(150, 150)
+	emblem.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	head.add_child(emblem)
+	head.add_child(title_box)
 	var title := UITheme.label("SON SIĞINAK", 104, UITheme.TEXT, UITheme.title_font())
 	title.add_theme_color_override("font_shadow_color", Color(0, 0, 0, 0.8))
 	title.add_theme_constant_override("shadow_offset_x", 3)
